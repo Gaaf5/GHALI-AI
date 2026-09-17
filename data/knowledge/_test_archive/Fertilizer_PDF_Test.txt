@@ -1,0 +1,8 @@
+Source: pdf_test
+Title: Fertilizer PDF Test
+Type: pdf
+Added: 2026-09-12T08:41:06.112642+00:00
+
+Fertilizer PDF Test
+Urea is a nitrogen fertilizer. Urea contains about 46% nitrogen by mass.
+Ammonium sulfate contains nitrogen and sulfur and has the formula (NH4)2SO4.

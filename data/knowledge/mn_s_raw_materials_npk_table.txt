@@ -1,0 +1,45 @@
+Source: user_uploaded_mns_table
+Title: Mn S Raw Materials Npk Table
+Type: text
+Added: 2026-09-12T15:49:26.375588+00:00
+
+# MNS Raw Materials — NPK and Element Composition
+Source: User-provided MNS raw-materials composition table image.
+Status: Project reference data extracted from the supplied image. Verify against the original controlled document before production use.
+## Macronutrient raw materials
+| Raw material | Formula | MW | N-nitr | N-amm | N-ure | P2O5 | K2O | MgO | S | SO3 | Cl | B | Cu | Fe | Mn | Mo | Zn |
+| Ammonium Nitrate | NH4NO3 | 80.34 | 17 | 17 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Urea | (NH2)2CO | 60.1 | 0 | 0 | 46 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Ammonium Sulfate | (NH4)2SO4 | 132.14 | 0 | 21 | 0 | 0 | 0 | 0 | 24 | 60 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Urea Phosphate | (NH2)2CO·H3PO4 | 158.1 | 0 | 0 | 17 | 44 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Phosphoric Acid Jordanian Green | H3PO4 | -- | 0 | 0 | 0 | 52 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Phosphoric Acid White food grade | H3PO4 | -- | 0 | 0 | 0 | 61 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| MAP | NH4H2PO4 | 115 | 0 | 12 | 0 | 61 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| MKP | KH2PO4 | 136.1 | 0 | 0 | 0 | 52 | 34 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Potassium Nitrate (NOP) | KNO3 | 101.1 | 13.5 | 0 | 0 | 0 | 46 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| SOP | K2SO4 | 174.3 | 0 | 0 | 0 | 0 | 50 | 0 | 17 | 42.5 | 0.5 | 0 | 0 | 0 | 0 | 0 | 0 |
+| KOH 90% concentration | KOH | 56 | 0 | 0 | 0 | 0 | 64* | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Magnesium Sulfate anhydrous | MgSO4 | 120.36 | 0 | 0 | 0 | 0 | 0 | 33 | 26.2 | 65.5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+*The KOH K2O value is handwritten/marked in the supplied image and should be verified against the original specification before production use.
+## Micronutrient raw materials
+| Raw material | Formula | MW | S | SO3 | B | Cu | Fe | Mn | Mo | Zn |
+| Boric Acid | H3BO3 | 61.8 | 0 | 0 | 17 | 0 | 0 | 0 | 0 | 0 |
+| Zinc Sulfate Monohydrate | ZnSO4·H2O | 179 | 17.5 | 43.75 | 0 | 0 | 0 | 0 | 0 | 35 |
+| Manganese Sulfate Monohydrate | MnSO4·H2O | 169 | 18.5 | 46.25 | 0 | 0 | 0 | 32 | 0 | 0 |
+| Copper Sulfate Pentahydrate | CuSO4·5H2O | 246.68 | 12.5 | 31.25 | 0 | 25 | 0 | 0 | 0 | 0 |
+| Ferrous Sulfate Monohydrate | FeSO4·H2O | 169.93 | 18.5 | 46.25 | 0 | 0 | 30 | 0 | 0 | 0 |
+| Sodium Molybdate Dihydrate | Na2MoO4·2H2O | 241.95 | 0 | 0 | 0 | 0 | 0 | 0 | 39.5 | 0 |
+## Other formulation materials shown in the table
+| Raw material | Formula | MW | Noted composition |
+| Citric Acid Monohydrate | C6H8O7·H2O | 210.83 | 0 for listed NPK/micronutrient columns |
+| EDTA 4Na | -- | -- | S = 99 in the supplied table; verify whether this is elemental sulfur/specification notation |
+| Sulfur | S | 32 | S = 99 |
+| Xanthan Gum | -- | -- | 0 for listed nutrient columns |
+| Bentonite | -- | -- | 0 for listed nutrient columns |
+## Calculation rule for NPK formulation
+For a batch of total mass M, if a raw material contains nutrient concentration C% and is the sole source of that nutrient, the required raw-material mass is:
+Required mass = (Target nutrient % / Raw-material nutrient %) × Total batch mass.
+Example: 1000 kg of 12-0-0 supplied entirely by urea (46% N):
+Urea = (12 / 46) × 1000 = 260.87 kg.
+Nitrogen supplied = 260.87 × 0.46 = 120 kg N.
+Important: preserve the nutrient basis exactly as specified (N vs N-forms; P2O5; K2O), and account for assay/purity/moisture when applicable. Never silently assume a purity or dry basis.

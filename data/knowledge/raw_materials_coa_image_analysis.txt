@@ -1,0 +1,85 @@
+Source: user_uploaded_coa_images
+Title: Raw Materials Coa Image Analysis
+Type: text
+Added: 2026-09-12T15:24:56.076998+00:00
+
+# Raw Material COA Data Extracted from Uploaded Images
+# Source: User-provided photographed COA/TDS documents
+# Status: Transcribed from images; verify against original PDFs before production use.
+## 1. LISIVEG - Raw material for fertilizer production
+Supplier: HELIONATURE BIOSCIENCE, LLC
+Country of origin: USA
+Batch No.: 141126024
+Production date: 16 September 2024
+Expiry: 3 years after production date
+Appearance: Brown liquid
+Total Nitrogen (N): 4.66%
+Organic Nitrogen (N): 4.66%
+Vegetal proteins and amino acids: 29.1% (as legible in image)
+## 2. Fertilizer Seaweed Extract Flake
+Document: Fertilizer seaweed extract flake, raw material for fertilizer production
+Invoice No.: TU21TCE97901
+Date: 22 January 2021
+Appearance: Black flake
+Odor: Smell of seaweed
+Organic matter: 50.16%
+N + P2O5 + K2O: 24.9%
+Alginic acid: 18.27%
+pH: 8.98
+Moisture: 1.16%
+Conclusion on document: Complies with requirements.
+## 3. Compound Amino Acid Powder 40% Plant Source
+Supplier: XIAMEN SUN CHEMICALS CO., LTD.
+Product: Compound Amino Acid Powder 40% Plant Source
+Chemical name: Compound amino acid, amino acid 40%
+Source: 100% plant source, described as soybean-derived
+Total amino acids specification: 40%
+Total nitrogen specification: approximately 16.7% (image is not fully clear; verify original TDS)
+Amino nitrogen specification: approximately 6.8% (image is not fully clear; verify original TDS)
+pH specification: 4-7
+Appearance: Yellowish powder, completely water soluble (as stated in TDS)
+## 4. Chitosan - Certificate of Analysis
+Product: Chitosan
+COA No.: 24TCS-0071CH
+Test date: August 20, 2024
+Issue date: August 20, 2024
+Batch No.: 24TCS-MG0001CH
+Quantity: 25 kg
+Appearance: Light yellow; conforms
+Assay: 94.15%
+Moisture: 5.25%
+Ash content: 0.27%
+Insoluble matter: 0.02%
+pH value: 5.25
+As: Not detected
+Pb: Not detected
+Hg: Not detected
+## 5. AQUAMIN - Raw material for fertilizer production
+Supplier: HELIONATURE BIOSCIENCE, LLC
+Country of origin: USA
+Batch No.: 540123824
+Production date: 25 August 2024
+Expiry: 3 years after production date
+Appearance: Yellow powder
+Organic matter (on product as such): 74.09%
+Total nitrogen (N): 10.27%
+Organic nitrogen (N): 10.27%
+## 6. Superior EDTA Mixer
+Product: Superior EDTA Mixer
+Date: 23 December 2024
+Appearance: Light green powder
+Iron (Fe EDTA): 5.1% w/w
+Copper (Cu EDTA): 2.6% w/w
+Manganese (Mn EDTA): 2.6% w/w
+Zinc (Zn EDTA): 2.6% w/w
+Boron (B): 0.8% w/w
+Molybdenum (Mo): 0.05% w/w
+pH of 1% solution: 4.0-6.5
+## Interpretation rules for GH​​ALI AI
+- Treat these values as source-backed project knowledge, not universal specifications.
+- When calculating formulations, use the reported assay/concentration only for the named batch or product.
+- Do not silently replace missing values with assumptions.
+- Ask for the original document or confirmation when a value is unclear, especially the amino-acid TDS values.
+- Distinguish total nitrogen, organic nitrogen, amino acids, organic matter, and micronutrient elemental percentages.
+- For formulation calculations, account for assay, moisture, and active-content basis where applicable.
+- These records came from photographs and must be verified against original COA/TDS files before final production release.

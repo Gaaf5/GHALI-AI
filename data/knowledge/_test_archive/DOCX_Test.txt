@@ -1,0 +1,10 @@
+Source: docx_test
+Title: DOCX Test
+Type: docx
+Added: 2026-09-12T08:45:42.962175+00:00
+
+GHALI AI DOCX Test
+Urea is a nitrogen fertilizer containing about 46% nitrogen by mass.
+Material | Formula | Type
+Urea | CO(NH2)2 | Nitrogen fertilizer
+DAP | (NH4)2HPO4 | Phosphate fertilizer

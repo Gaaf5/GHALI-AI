@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: ghali-ai
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    envVars:
+      - key: GHALI_LLM_PROVIDER
+        value: openai
+      - key: OPENAI_MODEL
+        value: gpt-5.6-luna
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GHALI_ADMIN_USER
+        value: ghaly
+      - key: GHALI_ADMIN_PASSWORD
+        sync: false
+      - key: GHALI_DATABASE_PATH
+        value: /app/data/ghali.db
+      - key: GHALI_KNOWLEDGE_PATH
+        value: /app/data/knowledge
+      - key: PORT
+        value: 8765
+    disk:
+      name: ghali-data
+      mountPath: /app/data
+      sizeGB: 10

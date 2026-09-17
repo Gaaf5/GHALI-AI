@@ -1,0 +1,33 @@
+Source: curated_formulation_rules
+Title: Fertilizer Formulation Rules Npk
+Type: text
+Added: 2026-09-12T15:16:24.426011+00:00
+
+# Fertilizer Formulation Rule: Single Nutrient Source
+## Rule: Calculate the quantity of a fertilizer raw material
+When a target nutrient percentage is supplied entirely by one raw material:
+raw_material_mass_kg = (target_nutrient_percent / nutrient_percent_in_raw_material) * total_batch_mass_kg
+The percentages must be expressed on the same basis. For example, urea contains 46% nitrogen (N).
+## Worked example: 1000 kg of grade 12-0-0 from urea only
+Inputs:
+- Total batch mass = 1000 kg
+- Target grade = 12-0-0
+- Required nitrogen = 12% by mass
+- Nitrogen content of urea = 46%
+- All nitrogen must come from urea
+Calculation:
+- Urea mass = (12 / 46) * 1000
+- Urea mass = 260.869565 kg, approximately 260.87 kg
+Verification:
+- Nitrogen supplied = 260.869565 * 0.46 = 120 kg N
+- Final nitrogen percentage = (120 / 1000) * 100 = 12%
+Mass remaining:
+- Remaining mass = 1000 - 260.869565 = 739.130435 kg
+- The remaining 739.13 kg must be a carrier, filler, or other approved material that contributes no nitrogen if the final product must remain 12-0-0.
+## Important formulation controls
+1. Do not silently assume that every remaining material is inert.
+2. If another ingredient contains nitrogen, its nitrogen contribution must be included.
+3. If urea assay, purity, or moisture differs from the nominal 46% N basis, use the verified effective nitrogen content instead.
+4. Confirm whether the target grade is expressed on an as-is, dry, or another contractual basis.
+5. Always verify the final total mass and nutrient contribution of every ingredient.
+6. This rule calculates a direct single-source requirement; it is not a complete multi-ingredient formulation solver.

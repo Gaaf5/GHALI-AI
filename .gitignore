@@ -1,0 +1,23 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+.idea/
+
+# Runtime data
+*.db-wal
+*.db-shm
+
+# Local test artifacts
+last_test_response.txt
+
+# Local database / runtime state
+*.db
+*.db-wal
+*.db-shm
+request_debug.log
+app/web/request_debug.log

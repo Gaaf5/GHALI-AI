@@ -1,0 +1,18 @@
+services:
+  ghali:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    env_file:
+      - .env
+    environment:
+      GHALI_LLM_PROVIDER: ${GHALI_LLM_PROVIDER:-openai}
+      PORT: 8765
+      GHALI_DATABASE_PATH: /app/data/ghali.db
+      GHALI_KNOWLEDGE_PATH: /app/data/knowledge
+    volumes:
+      - ghali_data:/app/data
+
+volumes:
+  ghali_data:

@@ -1,0 +1,43 @@
+Source: user_uploaded_mns_table
+Title: Mns Raw Materials Npk Table
+Type: text
+Added: 2026-09-12T15:41:01.989079+00:00
+
+# MNS Raw Materials Nutrient Composition Table
+Source: User-uploaded image of an MNS raw-material composition table.
+Status: Transcribed from image; values must be verified against the original controlled document before production use.
+Units: percentages by mass unless otherwise stated.
+Columns: N-nitr = nitrate nitrogen; N-amm = ammoniacal nitrogen; N-ure = urea nitrogen; P2O5, K2O, MgO, S, SO3, Cl, B, Cu, Fe, Mn, Mo, Zn.
+## Macronutrient raw materials
+- Ammonium nitrate, NH4NO3: MW 80.34; N-nitr 17; N-amm 17; N-ure 0; P2O5 0; K2O 0.
+- Urea, (NH2)2CO: MW 60.1; N-nitr 0; N-amm 0; N-ure 46; P2O5 0; K2O 0.
+- Ammonium sulfate, (NH4)2SO4: MW 132.14; N-amm 21; S 24; SO3 60.
+- Urea phosphate, (NH2)2CO.H3PO4: MW 158.1; N-ure 17; P2O5 44.
+- Phosphoric acid, Jordanian Green: P2O5 52 (as shown in table).
+- Phosphoric acid, white food grade: P2O5 appears to be approximately 61.4 in the image; verify from the original specification before use.
+- MAP, NH4H2PO4: MW 115; N-amm 12; P2O5 61.
+- MKP, KH2PO4: MW 136.1; P2O5 52; K2O 34.
+- Potassium nitrate, KNO3 (NOP): MW 101.1; N-nitr 13.5; K2O 46.
+- SOP, K2SO4: MW 174.3; K2O 50; S 17; SO3 42.5; Cl 0.5.
+- Potassium hydroxide, KOH, 90% concentration: MW 56; the K2O value is obscured by a handwritten mark in the image and must be confirmed before use. Do not infer it automatically.
+- Magnesium sulfate anhydrous, MgSO4: MW 120.36; MgO 33; S 26.2; SO3 65.5.
+## Micronutrient and auxiliary raw materials
+- Boric acid, H3BO3: MW 61.8; B 17.
+- Zinc sulfate monohydrate, ZnSO4.H2O: MW 179; S 17.5; SO3 43.75; Zn 35.
+- Manganese sulfate monohydrate, MnSO4.H2O: MW 169; S 18.5; SO3 46.25; Mn 32.
+- Copper sulfate pentahydrate, CuSO4.5H2O: MW 246.68; S 12.5; SO3 31.25; Cu 25.
+- Ferrous sulfate monohydrate, FeSO4.H2O: MW 169.93; S 18.5; SO3 46.25; Fe 30.
+- Sodium molybdate dihydrate, Na2MoO4.2H2O: MW 241.95; Mo 39.5.
+- Citric acid monohydrate, C6H8O7.H2O: MW 210.83; nutrient values shown as zero in the table.
+- EDTA 4Na: nutrient values shown as zero in the table; MW not specified.
+- Elemental sulfur: MW 32; S 99.
+- Xanthan gum: nutrient values shown as zero; MW not specified.
+- Bentonite: nutrient values shown as zero; MW not specified.
+## Calculation rules for GH​​ALI AI
+1. Treat these as source-specific table values, not universal guarantees for every supplier or batch.
+2. For a target fertilizer grade N-P2O5-K2O, calculate each nutrient from the actual mass of each raw material multiplied by its declared nutrient percentage.
+3. Distinguish N-nitrate, N-ammoniacal, and N-urea when the formulation requires nitrogen form control.
+4. For a batch mass M, nutrient mass from a raw material is: raw-material mass x nutrient percentage / 100.
+5. Final nutrient percentage is: total nutrient mass / total batch mass x 100.
+6. Do not use unclear handwritten or obscured values, especially the K2O value for 90% KOH, without confirmation.
+7. Account for assay, purity, moisture, and actual batch COA when available; do not silently assume dry or pure material.

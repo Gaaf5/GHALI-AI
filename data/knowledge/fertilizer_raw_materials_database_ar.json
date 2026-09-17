@@ -1,0 +1,31 @@
+{
+  "title": "Fertilizer Raw Materials Database - NPK and Chemical Composition",
+  "language": "Arabic",
+  "important_note": "القيم قياسية أو تقريبية حسب درجة النقاوة والمنتج التجاري؛ يعتمد الحساب النهائي على COA/TDS.",
+  "raw_materials": [
+    {"name_ar":"اليوريا","name_en":"Urea","formula":"CO(NH2)2","typical_analysis":"46-0-0"},
+    {"name_ar":"كلوريد البوتاسيوم","name_en":"Potassium Chloride / KCl / MOP","formula":"KCl","typical_analysis":"0-0-60 أو 0-0-61"},
+    {"name_ar":"سلفات البوتاسيوم","name_en":"Sulfate of Potash / SOP","formula":"K2SO4","typical_analysis":"0-0-50 + حوالي 18% S"},
+    {"name_ar":"سلفات الأمونيوم","name_en":"Ammonium Sulfate / AS","formula":"(NH4)2SO4","typical_analysis":"21-0-0 + حوالي 24% S"},
+    {"name_ar":"فوسفات أحادي الأمونيوم","name_en":"MAP","formula":"NH4H2PO4","typical_analysis":"11-52-0 أو 12-61-0 حسب الدرجة"},
+    {"name_ar":"فوسفات أحادي البوتاسيوم","name_en":"MKP","formula":"KH2PO4","typical_analysis":"0-52-34"},
+    {"name_ar":"حمض الفوسفوريك","name_en":"Phosphoric Acid","formula":"H3PO4","typical_analysis":"يعتمد على التركيز؛ شائعًا 48–61% P2O5"},
+    {"name_ar":"كربونات البوتاسيوم","name_en":"Potassium Carbonate","formula":"K2CO3","typical_analysis":"حوالي 68% K2O للنقاوة العالية"},
+    {"name_ar":"هيدروكسيد البوتاسيوم","name_en":"Potassium Hydroxide / KOH","formula":"KOH","typical_analysis":"حوالي 84% K2O مكافئ نظريًا عند نقاوة 100%"},
+    {"name_ar":"حمض الستريك","name_en":"Citric Acid","formula":"C6H8O7","typical_analysis":"0-0-0"},
+    {"name_ar":"حمض الأسكوربيك","name_en":"Ascorbic Acid","formula":"C6H8O6","typical_analysis":"0-0-0"},
+    {"name_ar":"الأحماض الأمينية","name_en":"Amino Acids","formula":"خليط متغير","typical_analysis":"حسب COA"},
+    {"name_ar":"الطين","name_en":"Clay","formula":"متغير حسب النوع","typical_analysis":"0-0-0"},
+    {"name_ar":"زانثان غم","name_en":"Xanthan Gum / X-Gum","formula":"بوليمر حيوي","typical_analysis":"0-0-0"},
+    {"name_ar":"كربوكسي ميثيل سليلوز","name_en":"CMC","formula":"بوليمر سليلوزي","typical_analysis":"0-0-0"},
+    {"name_ar":"Aquamin / AQA","name_en":"Aquamin or AQA","formula":"غير محدد","typical_analysis":"غير محدد"},
+    {"name_ar":"العناصر الصغرى","name_en":"TE / Trace Elements","formula":"خليط متغير","typical_analysis":"غير محدد"}
+  ],
+  "calculation_rules": [
+    "كمية المادة الخام = (النسبة المطلوبة من المغذي ÷ نسبة المغذي في المادة الخام) × كمية المنتج المرجعية.",
+    "عند استخدام أكثر من مصدر لنفس المغذي، تحسب مساهمة كل مصدر منفصلًا.",
+    "استخدم التحليل الفعلي في COA بدل القيم القياسية.",
+    "NPK بصيغة N-P2O5-K2O وليس نسب العنصر P أو K مباشرة."
+  ],
+  "source_note": "Imported from user-provided fertilizer raw-materials database on 2026-09-12."
+}
