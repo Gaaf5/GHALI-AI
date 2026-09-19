@@ -60,7 +60,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(200,b'''<!doctype html><meta name=viewport content=width=device-width><title>GHALI Setup</title><style>body{font:16px sans-serif;max-width:420px;margin:60px auto;padding:20px}input,button{width:100%;padding:12px;margin:8px 0;box-sizing:border-box}</style><h1>GHALI AI Setup</h1><p>Create the owner account. This page is available only from the local computer.</p><form method=post action=/api/setup><input name=username value=ghaly required><input name=password type=password minlength=8 placeholder='Owner password (8+ chars)' required><input name=confirm type=password minlength=8 placeholder='Confirm password' required><button>Create owner account</button></form>''','text/html; charset=utf-8')
             if path.startswith('/static/'):
                 f=STATIC/path.removeprefix('/static/')
-                if f.is_file() and f.resolve().is_relative_to(STATIC.resolve()): return self.send_data(200,f.read_bytes(),'text/css; charset=utf-8' if f.suffix=='.css' else 'application/javascript; charset=utf-8')
+                if f.is_file() and f.resolve().is_relative_to(STATIC.resolve()):
+                    mime={'.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon'}.get(f.suffix.lower(),'application/octet-stream')
+                    return self.send_data(200,f.read_bytes(),mime)
                 return self.send_data(404,'Not found','text/plain; charset=utf-8')
             if path=='/api/me':
                 u=self.user()
