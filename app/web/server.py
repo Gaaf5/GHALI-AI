@@ -74,6 +74,16 @@ class Handler(BaseHTTPRequestHandler):
                 u=self.require('chat');
                 if not u:return
                 return self.send_data(200,jb(STATE.status()))
+            if path=='/api/conversations':
+                u=self.require('chat');
+                if not u:return
+                return self.send_data(200,jb(STATE.db.list_conversations(u['id'])))
+            if path.startswith('/api/conversations/'):
+                u=self.require('chat');
+                if not u:return
+                cid=int(path.rsplit('/',1)[1]); conv=STATE.db.get_conversation(cid,u['id'])
+                if not conv:return self.send_data(404,jb({'error':'Conversation not found'}))
+                return self.send_data(200,jb({'conversation':conv,'messages':STATE.db.get_messages(cid,u['id'])}))
             if path=='/api/materials':
                 u=self.require('materials');
                 if not u:return
@@ -106,6 +116,22 @@ class Handler(BaseHTTPRequestHandler):
                 u=str(d.get('username','ghaly')).strip(); pw=str(d.get('password','')); cp=str(d.get('confirm',''))
                 if len(pw)<8 or pw!=cp: return self.send_data(400,jb({'error':'Password must match and be at least 8 characters'}))
                 STATE.auth.create_admin(u,pw); return self.send_data(200,b'<script>alert("Owner account created. You can now sign in.");location="/"</script>','text/html; charset=utf-8')
+            if path=='/api/conversations':
+                u=self.require('chat')
+                if not u:return
+                title=str(d.get('title','New chat')).strip() or 'New chat'
+                cid=STATE.db.create_conversation(u['id'],title)
+                return self.send_data(200,jb({'id':cid,'title':title}))
+            if path.startswith('/api/conversations/') and path.endswith('/rename'):
+                u=self.require('chat')
+                if not u:return
+                cid=int(path.split('/')[-2]); STATE.db.rename_conversation(cid,u['id'],str(d.get('title','New chat')))
+                return self.send_data(200,jb({'ok':True}))
+            if path.startswith('/api/conversations/') and path.endswith('/delete'):
+                u=self.require('chat')
+                if not u:return
+                cid=int(path.split('/')[-2]); STATE.db.delete_conversation(cid,u['id'])
+                return self.send_data(200,jb({'ok':True}))
             if path=='/api/login':
                 token=STATE.auth.login(str(d.get('username','')),str(d.get('password','')))
                 if not token:return self.send_data(401,jb({'error':'Invalid username or password'}))
@@ -114,10 +140,17 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/logout':
                 STATE.auth.logout(self.token()); return self.send_data(200,jb({'ok':True}))
             if path=='/api/chat':
-                if not self.require('chat'):return
+                u=self.require('chat')
+                if not u:return
                 msg=str(d.get('message','')).strip()
                 if not msg:return self.send_data(400,jb({'error':'Message is required'}))
-                return self.send_data(200,jb({'reply':STATE.brain.think(msg)}))
+                cid=int(d.get('conversation_id') or 0)
+                if not cid: cid=STATE.db.create_conversation(u['id'], msg[:55])
+                history=STATE.db.get_messages(cid,u['id'])
+                reply=STATE.brain.think(msg, history=history)
+                STATE.db.add_message(cid,u['id'],'user',msg)
+                STATE.db.add_message(cid,u['id'],'assistant',reply)
+                return self.send_data(200,jb({'reply':reply,'conversation_id':cid}))
             if path=='/api/formulate':
                 if not self.require('formulation'):return
                 r=solve_named_formulation(str(d['target']),float(d['batch_kg']),list(d['materials']),float(d.get('tolerance_pct',.2)),d.get('limits') or {},d.get('objective')); return self.send_data(200,jb(r))

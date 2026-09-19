@@ -17,8 +17,13 @@ class Brain:
         self.conversation = Conversation(max_messages=max_history)
         load_defaults()
 
-    def think(self, user_message):
+    def think(self, user_message, history=None):
         text = user_message.strip()
+        if history is not None:
+            self.conversation.clear()
+            for item in history[-12:]:
+                if item.get('role') == 'user': self.conversation.add_user(item.get('content',''))
+                elif item.get('role') == 'assistant': self.conversation.add_assistant(item.get('content',''))
         if not text:
             return "Please enter a question or command."
         route = classify(text)

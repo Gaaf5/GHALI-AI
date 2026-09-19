@@ -33,6 +33,24 @@ class Database:
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS idx_raw_materials_active ON raw_materials(active);
+        CREATE TABLE IF NOT EXISTS conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL DEFAULT 'New chat',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES auth_users(id)
+        );
+        CREATE TABLE IF NOT EXISTS conversation_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id, id);
         CREATE TABLE IF NOT EXISTS raw_material_aliases (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             raw_material_id INTEGER NOT NULL,
@@ -67,6 +85,38 @@ class Database:
     def get_raw_material(self, name):
         row = self.cursor.execute("SELECT * FROM raw_materials WHERE lower(name)=lower(?)", (name,)).fetchone()
         return dict(row) if row else None
+
+    def create_conversation(self, user_id, title="New chat"):
+        self.cursor.execute("INSERT INTO conversations(user_id,title) VALUES(?,?)", (user_id, title.strip() or "New chat"))
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def list_conversations(self, user_id):
+        rows = self.cursor.execute("SELECT id,title,created_at,updated_at FROM conversations WHERE user_id=? ORDER BY updated_at DESC,id DESC", (user_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_conversation(self, conversation_id, user_id):
+        row = self.cursor.execute("SELECT * FROM conversations WHERE id=? AND user_id=?", (conversation_id, user_id)).fetchone()
+        return dict(row) if row else None
+
+    def get_messages(self, conversation_id, user_id, limit=24):
+        rows = self.cursor.execute("SELECT m.role,m.content,m.created_at FROM conversation_messages m JOIN conversations c ON c.id=m.conversation_id WHERE m.conversation_id=? AND c.user_id=? ORDER BY m.id DESC LIMIT ?", (conversation_id, user_id, limit)).fetchall()
+        return [dict(r) for r in reversed(rows)]
+
+    def add_message(self, conversation_id, user_id, role, content):
+        if not self.get_conversation(conversation_id, user_id): raise ValueError("Conversation not found")
+        self.cursor.execute("INSERT INTO conversation_messages(conversation_id,role,content) VALUES(?,?,?)", (conversation_id, role, content))
+        self.cursor.execute("UPDATE conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?", (conversation_id, user_id))
+        self.connection.commit()
+
+    def rename_conversation(self, conversation_id, user_id, title):
+        self.cursor.execute("UPDATE conversations SET title=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?", (title.strip() or "New chat", conversation_id, user_id))
+        self.connection.commit()
+
+    def delete_conversation(self, conversation_id, user_id):
+        self.cursor.execute("DELETE FROM conversation_messages WHERE conversation_id=? AND conversation_id IN (SELECT id FROM conversations WHERE user_id=?)", (conversation_id, user_id))
+        self.cursor.execute("DELETE FROM conversations WHERE id=? AND user_id=?", (conversation_id, user_id))
+        self.connection.commit()
 
     def add_raw_material_alias(self, material_name, alias):
         row = self.get_raw_material(material_name)
