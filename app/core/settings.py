@@ -11,6 +11,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
+GHALI_WEB_SEARCH = os.getenv("GHALI_WEB_SEARCH", "true").lower() in {"1", "true", "yes", "on"}
 OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "256"))
 KNOWLEDGE_PATH = Path(os.getenv("GHALI_KNOWLEDGE_PATH", "data/knowledge"))

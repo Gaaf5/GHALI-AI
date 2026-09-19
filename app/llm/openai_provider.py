@@ -15,8 +15,10 @@ class OpenAIProvider(BaseLLM):
         self.client = OpenAI(api_key=api_key)
 
     def chat(self, messages):
-        response = self.client.responses.create(
-            model=self.model,
-            input=messages,
-        )
+        tools = [{"type": "web_search"}] if os.getenv("GHALI_WEB_SEARCH", "true").lower() in {"1", "true", "yes", "on"} else None
+        kwargs = {"model": self.model, "input": messages}
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+        response = self.client.responses.create(**kwargs)
         return response.output_text

@@ -36,7 +36,11 @@ def _exact(names,mats,target,batch,tol,limits,objective):
     for row,t in zip(A,target):
         Aub += [row,[-v for v in row]]; bub += [t+tol,-(t-tol)]
     c=[0.0]*len(names)
-    if objective and objective[0] in names:c[names.index(objective[0])]=-1.0 if objective[1]=="max" else 1.0
+    if objective:
+        direction=objective[1]
+        for material in objective[0]:
+            if material in names:
+                c[names.index(material)]=-1.0 if direction=="max" else 1.0
     r=linprog(c,A_ub=Aub,b_ub=bub,A_eq=[[1.0]*len(names)],b_eq=[batch],bounds=_bounds(names,batch,limits),method="highs")
     return list(r.x) if r.success else None
 
@@ -62,7 +66,7 @@ def _result(status,masses,batch,target,achieved,tol,objective,reason=None):
             "materials":{n:float(m) for n,m in masses.items() if m>1e-7},"batch_kg":float(batch),
             "target":dict(zip(NUTRIENTS,target)),"achieved":achieved,
             "deviation":{k:achieved[k]-target[i] for i,k in enumerate(NUTRIENTS)},
-            "objective":{"material":objective[0],"direction":objective[1]} if objective else None}
+            "objective":{"materials":list(objective[0]),"direction":objective[1]} if objective else None}
 
 def solve_formulation(target_n,target_p2o5,target_k2o,batch_kg,materials,tolerance=0.2,limits=None,objective=None):
     if batch_kg<=0:raise ValueError("batch_kg must be positive")
@@ -111,13 +115,18 @@ def solve_named_formulation(target,batch_kg,material_names,tolerance=0.2,limits=
             row=db.resolve_raw_material(name)
             if row:cl[row["name"]]=cfg
         obj=None
-        if objective and objective.get("material"):
-            row=db.resolve_raw_material(objective["material"])
-            if not row:raise ValueError("Optimization material was not found")
+        if objective and objective.get("materials"):
+            raw_objective=objective["materials"]
+            if isinstance(raw_objective,str): raw_objective=[raw_objective]
+            resolved=[]
+            for material in raw_objective:
+                row=db.resolve_raw_material(material)
+                if not row:raise ValueError(f"Optimization material was not found: {material}")
+                if row["name"] not in selected:raise ValueError(f"Optimization material must be selected: {row['name']}")
+                if row["name"] not in resolved: resolved.append(row["name"])
             direction=str(objective.get("direction","max")).lower()
             if direction not in ("min","max"):raise ValueError("Objective direction must be min or max")
-            obj=(row["name"],direction)
-            if obj[0] not in selected:raise ValueError("Optimization material must be selected")
+            if resolved: obj=(resolved,direction)
         result=solve_formulation(tn,tp,tk,batch_kg,selected,tolerance,cl,obj)
         if result["status"]=="NOT_FEASIBLE":
             rows=db.list_raw_materials(active_only=True)

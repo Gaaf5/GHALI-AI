@@ -2,8 +2,9 @@ from .ollama_provider import OllamaProvider
 from .openai_provider import OpenAIProvider
 
 
-def create_llm(provider="ollama"):
-    name = (provider or "ollama").lower().strip()
+def create_llm(provider=None):
+    import os
+    name = (provider or os.getenv("GHALI_LLM_PROVIDER", "ollama")).lower().strip()
     if name == "ollama":
         return OllamaProvider()
     if name == "openai":
