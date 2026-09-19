@@ -100,7 +100,8 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/login':
                 token=STATE.auth.login(str(d.get('username','')),str(d.get('password','')))
                 if not token:return self.send_data(401,jb({'error':'Invalid username or password'}))
-                self.send_data(200,jb({'ok':True}),); self._last_token=token; return
+                self._last_token=token
+                return self.send_data(200,jb({'ok':True}))
             if path=='/api/logout':
                 STATE.auth.logout(self.token()); return self.send_data(200,jb({'ok':True}))
             if path=='/api/chat':
