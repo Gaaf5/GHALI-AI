@@ -21,6 +21,9 @@ class GHALIServer:
         self.auth=AuthManager(self.db)
         self.auth.ensure_admin(os.getenv('GHALI_ADMIN_USER','ghaly'),os.getenv('GHALI_ADMIN_PASSWORD',''))
     def close(self): self.memory.close(); self.db.close()
+    def status(self):
+        model=getattr(self.brain.llm,'model','unknown')
+        return {'app':'GHALI AI','version':'0.4.0','model':model,'materials':len(self.db.list_raw_materials()),'knowledge':len(self.knowledge.list_documents()),'memory':self.memory.count()}
 
 def jb(data): return json.dumps(data,ensure_ascii=False).encode('utf-8')
 class Handler(BaseHTTPRequestHandler):
