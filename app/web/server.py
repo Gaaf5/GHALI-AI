@@ -44,10 +44,6 @@ class Handler(BaseHTTPRequestHandler):
     def require_admin(self):
         u=self.require('admin')
         if not u: return None
-        owner_login=os.getenv('GHALI_OWNER_TAILSCALE_LOGIN','') .strip().lower()
-        ts_login=self.headers.get('Tailscale-User-Login','').strip().lower()
-        if not owner_login or not ts_login or ts_login!=owner_login:
-            self.send_data(403,jb({'error':'Owner administration is available only from the authorized Tailscale identity'})); return None
         return u
     def do_GET(self):
         path=urlparse(self.path).path or '/'
@@ -65,10 +61,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(404,'Not found','text/plain; charset=utf-8')
             if path=='/api/me':
                 u=self.user()
-                ts_login=self.headers.get('Tailscale-User-Login','').strip().lower()
-                owner_login=os.getenv('GHALI_OWNER_TAILSCALE_LOGIN','').strip().lower()
-                admin_control=bool(u and u.get('role')=='admin' and ts_login and owner_login and ts_login==owner_login)
+                admin_control=bool(u and u.get('role')=='admin')
                 return self.send_data(200,jb(({'authenticated':True,**u,'admin_control':admin_control}) if u else {'authenticated':False}))
+            if path=='/healthz':
+                return self.send_data(200,jb({'ok':True,'app':'GHALI AI'}))
             if path=='/api/status':
                 u=self.require('chat');
                 if not u:return
