@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import secrets
 import time
 
@@ -20,7 +21,7 @@ def verify_password(password, encoded):
 
 class AuthManager:
     def __init__(self, db):
-        self.db=db; self.sessions={}
+        self.db=db
         self._ensure_schema()
     def _ensure_schema(self):
         self.db.cursor.executescript("""
@@ -37,14 +38,23 @@ class AuthManager:
     def login(self, username, password):
         row=self.db.cursor.execute("SELECT * FROM auth_users WHERE lower(username)=lower(?) AND active=1",(username.strip(),)).fetchone()
         if not row or not verify_password(password,row['password_hash']): return None
-        token=secrets.token_urlsafe(32); self.sessions[token]=(dict(row),time.time()+SESSION_TTL); return token
+        expires=int(time.time())+SESSION_TTL
+        payload=f"{row['id']}.{expires}"
+        signature=hmac.new(row['password_hash'].encode(),payload.encode(),hashlib.sha256).hexdigest()
+        return f"{payload}.{signature}"
     def user(self, token):
-        item=self.sessions.get(token)
-        if not item: return None
-        user,expires=item
-        if expires<time.time(): self.sessions.pop(token,None); return None
-        return user
-    def logout(self,token): self.sessions.pop(token,None)
+        try:
+            user_id,expires,signature=token.split(".",2)
+            if int(expires)<int(time.time()): return None
+            row=self.db.cursor.execute("SELECT * FROM auth_users WHERE id=? AND active=1",(int(user_id),)).fetchone()
+            if not row: return None
+            payload=f"{row['id']}.{int(expires)}"
+            expected=hmac.new(row['password_hash'].encode(),payload.encode(),hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(signature,expected): return None
+            return dict(row)
+        except Exception:
+            return None
+    def logout(self,token): return None
     def allowed(self,user,service):
         return bool(user and (user['role']=='admin' or service in user['permissions'].split(',')))
     def list_users(self):
