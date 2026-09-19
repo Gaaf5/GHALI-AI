@@ -76,7 +76,11 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/knowledge':
                 u=self.require('knowledge');
                 if not u:return
-                return self.send_data(200,jb(STATE.knowledge.list_documents()))
+                docs=[]
+                for path_item in STATE.knowledge.list_documents():
+                    meta=STATE.knowledge.get_metadata(path_item)
+                    docs.append({'title':meta.get('title',path_item.stem),'source':meta.get('source','project'),'type':meta.get('type','text'),'file':path_item.name})
+                return self.send_data(200,jb(docs))
             if path=='/api/admin/users':
                 u=self.require_admin();
                 if not u:return

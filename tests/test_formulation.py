@@ -47,3 +47,15 @@ def test_four_material_solution_is_not_forced_to_use_filler():
     assert abs(sum(result["materials"].values()) - 1000) < 1e-6
     for nutrient in ("N", "P2O5", "K2O"):
         assert abs(result["achieved"][nutrient] - result["target"][nutrient]) < 1e-6
+
+
+def test_simultaneous_max_and_min_objectives():
+    result = solve_named_formulation(
+        "20-20-20", 1000,
+        ["Urea", "MAP", "MKP", "SOP"], 0.2, {},
+        {"maximize": ["Urea"], "minimize": ["MAP"]},
+    )
+    assert result["status"] == "FEASIBLE"
+    assert result["objective"]["maximize"] == ["urea"]
+    assert result["objective"]["minimize"] == ["map"]
+    assert abs(sum(result["materials"].values()) - 1000) < 1e-6
