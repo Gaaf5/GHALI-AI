@@ -1,0 +1,50 @@
+Source: curated_authoritative_sources
+Title: Authoritative References - Fertilizer Chemistry and NPK Manufacturing
+Type: reference_index
+Added: 2026-09-20
+
+PURPOSE
+This document is a curated source registry for GHALI AI. Prefer these sources when answering fertilizer chemistry, NPK manufacturing, product specifications, nutrient management, and industrial-process questions. Do not treat commercial marketing pages as primary evidence when an institutional or standards source is available.
+
+TIER 1 - INTERNATIONAL / GOVERNMENT / TECHNICAL REFERENCES
+1. FAO - Fertilizer Specifications and Plant Production and Protection Division.
+Scope: fertilizer grades, nutrient expression, specifications for urea, ammonium sulphate, CAN, SSP, TSP, MOP, SOP, DAP and NPK complex grades including 15-15-15, 17-17-17 and 19-19-19.
+URL: https://www.fao.org/agriculture/crops/thematic-sitemap/theme/spi/plantnutrition/fertspecs/en/
+
+2. FAO - Fertilizer and Plant Nutrition Bulletins.
+Scope: plant nutrition, fertilizer use efficiency, micronutrients, integrated nutrient management, fertilizer use by crop and phosphorus.
+URL: https://www.fao.org/agriculture/crops/publications/fertilizer-and-plant-nutrition-bulletins/en/
+
+3. IFDC / UNIDO - The Fertilizer Manual.
+Scope: fertilizer production technology, raw materials, nitrogen, phosphate and compound fertilizer processes, physical properties, economics and industrial planning. IFDC describes it as a comprehensive reference for fertilizer production technology.
+URL: https://hub.ifdc.org/handle/20.500.14297/1974
+
+4. European Commission Joint Research Centre - BREF: Large Volume Inorganic Chemicals - Ammonia, Acids and Fertilisers (LVIC-AAF).
+Scope: industrial production of ammonia, nitric acid, sulphuric acid, phosphoric acid, NPK fertilizers via nitrophosphate and mixed-acid routes, urea/UAN, AN/CAN and superphosphates; useful for process engineering and environmental/BAT context.
+URL: https://eippcb.jrc.ec.europa.eu/reference/large-volume-inorganic-chemicals-ammonia-acids-and-fertilisers
+
+5. International Fertilizer Association (IFA) - Nitrogen, Phosphorus & Potassium.
+Scope: high-level chemistry and industrial origin of N, P and K fertilizer products and production chains.
+URL: https://www.fertilizer.org/about-fertilizers/nitrogen-phosphorus-potassium/
+
+6. IFA Technical Conference archive - NPK and compound fertilizer production.
+Scope: technical papers on compound/complex NPK processes, granulation, raw materials, economics, process development and plant operation.
+URL: https://www.fertilizer.org/resources/
+
+7. USDA - Nutrient Management.
+Scope: nutrient stewardship, fertilizer source/rate/time/place, nutrient losses and agronomic management.
+URL: https://ers.usda.gov/topics/farm-practices-management/crop-livestock-practices/nutrient-management
+
+8. NIST Chemistry WebBook / IUPAC-NIST databases.
+Scope: chemical identifiers, molecular formulas, molecular weights and selected thermochemical/physical-property data; use NIST for chemical identity/property verification rather than fertilizer-grade guarantees.
+URL: https://webbook.nist.gov/
+
+SOURCE PRIORITY RULE
+For fertilizer specifications and grades: prefer FAO or applicable national standard.
+For industrial NPK process technology: prefer IFDC/UNIDO Fertilizer Manual, JRC LVIC-AAF BREF and IFA technical papers.
+For chemical identity and molecular properties: prefer NIST/IUPAC.
+For agronomic nutrient-management claims: prefer FAO and USDA/NRCS.
+When sources disagree, preserve both claims, identify the source and publication context, and do not silently merge different standards.
+
+IMPORTANT LIMITATION
+The knowledge base stores curated summaries and source metadata, not full copyrighted books or manuals. GHALI AI should cite the source when using a claim and should retrieve the original publication for detailed engineering design or regulatory decisions.

@@ -1,0 +1,26 @@
+Source: JRC_LVIC_AAF_IFA_FAO_curated
+Title: NPK Manufacturing - Process Safety, Environmental and Quality Context
+Type: industrial_reference
+Added: 2026-09-20
+
+SCOPE
+The EU Joint Research Centre LVIC-AAF BREF covers industrial production of ammonia, nitric acid, sulphuric acid, phosphoric acid, NPK fertilizers via nitrophosphate and mixed-acid routes, urea/UAN, AN/CAN and superphosphates. It is a key reference for process and environmental context.
+
+PROCESS SAFETY PRINCIPLES
+GHALI AI should treat fertilizer production as a process industry. Safety-critical questions require plant-specific SOPs, SDSs, risk assessments, interlocks, emergency procedures and applicable regulations. Generic chemistry knowledge must not override site procedures.
+
+QUALITY AND PROCESS CONTROL
+Important controls include accurate dosing, material identity, moisture, temperature, reaction conditions, granulation conditions, recycle streams, drying/cooling, screening, dust control and finished-product sampling. Control-room indicators such as silo level, gross weight, batch status, conveyor status, actual frequency/RPM, motor load, alarms, interlocks and permissives are operational data and should be interpreted together rather than individually.
+
+ENVIRONMENTAL CONTEXT
+Fertilizer plants can generate dust and process emissions and can have nutrient-containing wastewater or solid residues depending on the route. BAT/BREF documentation should be consulted for process-specific emission-control techniques and performance levels.
+
+SOURCE PRIORITY
+For plant-specific safety: site SOP/SDS/risk assessment first.
+For regulatory/BAT context: applicable national regulation and current JRC/EU BREF.
+For product specifications: applicable national/customer specification; FAO references can provide an international technical baseline but are not automatically legal requirements.
+
+REFERENCES
+JRC LVIC-AAF BREF: https://eippcb.jrc.ec.europa.eu/reference/large-volume-inorganic-chemicals-ammonia-acids-and-fertilisers
+IFA technical resources: https://www.fertilizer.org/resources/
+FAO specifications: https://www.fao.org/agriculture/crops/thematic-sitemap/theme/spi/plantnutrition/fertspecs/en/

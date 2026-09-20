@@ -1,0 +1,43 @@
+Source: IFDC_UNIDO_IFA_JRC_curated
+Title: NPK Manufacturing - Process Routes and Industrial Concepts
+Type: technical_summary
+Added: 2026-09-20
+
+CORE CONCEPT
+NPK fertilizer contains the primary nutrients nitrogen (N), phosphorus expressed conventionally as P2O5, and potassium expressed conventionally as K2O. Fertilizer grade is normally written N-P2O5-K2O.
+
+TWO IMPORTANT PRODUCT FAMILIES
+1. Compound/complex NPK: nutrients are incorporated through a chemical or process route so the granule itself carries the declared nutrient composition.
+2. Bulk-blended/mixed fertilizer: finished granular straight fertilizers are mechanically mixed. Homogeneity and particle-size compatibility are critical to reduce segregation.
+FAO and IFA sources distinguish these concepts; terminology can vary by jurisdiction and publication.
+
+MAJOR INDUSTRIAL ROUTES
+A. Ammonium-phosphate-based routes
+Phosphate rock is converted through acidulation to phosphoric acid or phosphate intermediates. Ammoniation produces ammonium phosphate intermediates such as MAP/DAP. Nitrogen and potassium sources can then be incorporated, followed by granulation, drying/cooling, screening and recycle of off-size material where applicable.
+
+B. Nitrophosphate / mixed-acid routes
+The JRC LVIC-AAF BREF identifies nitrophosphate and mixed-acid routes for NPK production. Nitric acid and/or mixed acids are used to process phosphate raw materials, followed by ammoniation and incorporation of potassium-bearing materials, with granulation and finishing operations.
+
+C. Slurry granulation
+A slurry containing dissolved/reacted nutrient salts is formed and granulated. Water balance, slurry rheology, temperature, recycle ratio, granulator conditions and dryer load are important process variables.
+
+D. Bulk blending
+Straight or intermediate fertilizers with compatible particle-size distributions are proportioned by weight and mixed mechanically. This route is conceptually different from chemically reacting raw materials.
+
+COMMON UNIT OPERATIONS
+Raw-material receiving -> storage/silos -> weighing/dosing -> reaction or mixing -> granulation -> drying if required -> cooling -> screening -> recycle of fines/oversize -> coating/conditioning if used -> finished-product storage -> bagging.
+
+PROCESS-CONTROL VARIABLES RELEVANT TO GHALI-AI
+Mass flow of each raw material; batch mass; N/P2O5/K2O balance; moisture; slurry temperature; granulator load; recycle ratio; dryer inlet/outlet temperature; product temperature; screen cut points; particle-size distribution; motor load; conveyor/elevator status; liquid-additive flow; residence time; and interlocks/permissives.
+
+QUALITY RISKS
+Moisture variation, caking, segregation, excessive fines, oversized granules, weak granules, nutrient non-uniformity, incorrect weighing, raw-material assay variation and incompatibility between materials can cause finished-product specification failures.
+
+ENGINEERING NOTE
+A formulation calculation is not automatically a validated manufacturing recipe. Industrial production requires material assays, moisture corrections, process yield/recycle assumptions, equipment capacity, heat/mass balance, product specifications and plant-specific operating limits.
+
+PRIMARY REFERENCES
+FAO fertilizer specifications: https://www.fao.org/agriculture/crops/thematic-sitemap/theme/spi/plantnutrition/fertspecs/en/
+IFDC/UNIDO Fertilizer Manual: https://hub.ifdc.org/handle/20.500.14297/1974
+JRC LVIC-AAF BREF: https://eippcb.jrc.ec.europa.eu/reference/large-volume-inorganic-chemicals-ammonia-acids-and-fertilisers
+IFA resources: https://www.fertilizer.org/resources/

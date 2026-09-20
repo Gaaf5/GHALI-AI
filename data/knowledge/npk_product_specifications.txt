@@ -1,0 +1,24 @@
+Source: FAO_Fertilizer_Specifications
+Title: NPK Product Specifications, Grades and Quality Parameters
+Type: standards_summary
+Added: 2026-09-20
+
+FERTILIZER GRADE
+FAO defines fertilizer grade as the legal guarantee of available plant nutrients expressed as percentage by weight. NPK grades are written N-P2O5-K2O. Example: 12-32-16 means 12% N, 32% P2O5 and 16% K2O by the stated specification basis.
+
+FAO COMMON NPK COMPLEX SPECIFICATIONS
+NPK 15-15-15: minimum total N 15%; minimum neutral ammonium citrate soluble P2O5 15%; minimum water-soluble P2O5 12%; minimum water-soluble K2O 15%; maximum moisture 1.5%; particle-size requirement includes at least 90% passing 4 mm and retained on 1 mm, with no more than 5% below 1 mm under the cited FAO specification.
+
+NPK 17-17-17: minimum total N 17%; minimum neutral ammonium citrate soluble P2O5 17%; minimum water-soluble P2O5 13.6%; minimum water-soluble K2O 17%; maximum moisture 1.5%; particle-size requirements as specified by FAO.
+
+NPK 19-19-19: minimum total N 19%; minimum neutral ammonium citrate soluble P2O5 19%; minimum water-soluble P2O5 15.2%; minimum water-soluble K2O 19%; maximum moisture 1.5%; particle-size requirements as specified by FAO.
+
+IMPORTANT
+These are FAO procurement/specification examples, not universal legal standards for every country or plant. GHALI AI must identify the applicable country/customer specification before declaring a product compliant.
+
+OTHER FAO INFORMATION
+FAO lists specifications for urea, ammonium sulphate, CAN, SSP, TSP, MOP/KCl, SOP/K2SO4, DAP and several NPK complex grades.
+
+REFERENCES
+FAO Fertilizer Specifications: https://www.fao.org/agriculture/crops/thematic-sitemap/theme/spi/plantnutrition/fertspecs/en/
+FAO/IFA fertilizer-use reference containing multinutrient fertilizer ranges and typical grades: https://www.fertilizer.org/wp-content/uploads/2023/01/2000_IFa_FAO_fertilizeruse.pdf

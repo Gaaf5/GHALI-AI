@@ -1,0 +1,39 @@
+Source: FAO_USDA_NIST_IFA_curated
+Title: Fertilizer Chemistry, Nutrient Forms and Stewardship
+Type: chemistry_reference
+Added: 2026-09-20
+
+PRIMARY NUTRIENTS
+Nitrogen (N), phosphorus (P) and potassium (K) are the primary plant nutrients used in manufactured fertilizers. Commercial fertilizer analysis conventionally expresses phosphorus as P2O5 and potassium as K2O in the grade notation.
+
+NITROGEN
+Industrial nitrogen fertilizer production is fundamentally linked to ammonia. IFA describes ammonia production as based on nitrogen from air and a hydrogen source, commonly natural gas or coal in conventional systems; ammonia is then converted into solid or liquid nitrogen fertilizers. Urea is a major nitrogen fertilizer product.
+
+PHOSPHORUS
+Phosphate fertilizers originate from phosphate rock. Industrial processing commonly uses acidulation to produce phosphoric-acid or phosphate intermediates, which can be reacted with ammonia to produce ammonium phosphates and incorporated into NPK products.
+
+POTASSIUM
+Potassium fertilizers originate largely from potash minerals. Potassium chloride (MOP/KCl) is a major potassium fertilizer raw material; potassium sulphate (SOP/K2SO4) is another important source where chloride or sulphur requirements influence product selection.
+
+CHEMICAL IDENTITY DATA
+For chemical identity, formulas and molecular weights, use NIST/IUPAC databases. Example: NIST lists urea as CH4N2O, CAS 57-13-6, molecular weight 60.0553 g/mol.
+
+NPK CALCULATION RULE
+For a blend of masses mi and material nutrient fractions Ni, P_i and K_i, nutrient mass fractions are calculated from the weighted sum of each component. For a batch M:
+N% = 100 * sum(mi * Ni_fraction) / M
+P2O5% = 100 * sum(mi * P2O5_fraction) / M
+K2O% = 100 * sum(mi * K2O_fraction) / M
+The fractions must be based on the same specification/assay basis. Moisture and assay corrections must be applied when raw-material specifications require them.
+
+NUTRIENT STEWARDSHIP
+USDA/NRCS and FAO emphasize matching nutrient source, rate, timing and placement to crop and site needs. Over-application of nitrogen or phosphorus can increase nutrient losses and environmental risk.
+
+GHALI-AI RULE
+Never infer agronomic suitability from NPK grade alone. Crop, soil test, climate, application method, nutrient form, local regulation and target yield can change the appropriate recommendation.
+
+REFERENCES
+IFA NPK overview: https://www.fertilizer.org/about-fertilizers/nitrogen-phosphorus-potassium/
+FAO fertilizer specifications: https://www.fao.org/agriculture/crops/thematic-sitemap/theme/spi/plantnutrition/fertspecs/en/
+FAO fertilizer bulletins: https://www.fao.org/agriculture/crops/publications/fertilizer-and-plant-nutrition-bulletins/en/
+USDA nutrient management: https://ers.usda.gov/topics/farm-practices-management/crop-livestock-practices/nutrient-management
+NIST Chemistry WebBook: https://webbook.nist.gov/
