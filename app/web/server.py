@@ -1,6 +1,7 @@
 import json
 import os
-import json
+import time
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,6 +14,11 @@ from app.tools.formulation import solve_named_formulation
 from app.web.auth import AuthManager
 
 ROOT=Path(__file__).resolve().parent; STATIC=ROOT/'static'; STATE=None
+MAX_BODY_BYTES=1_048_576
+LOGIN_WINDOW=15*60
+LOGIN_MAX_FAILURES=5
+LOGIN_ATTEMPTS={}
+LOGIN_LOCK=threading.Lock()
 class GHALIServer:
     def __init__(self):
         self.db=Database(); self.db.create_tables()
@@ -29,9 +35,21 @@ def jb(data): return json.dumps(data,ensure_ascii=False).encode('utf-8')
 class Handler(BaseHTTPRequestHandler):
     server_version='GHALI/0.4'
     def send_data(self,status,data,ctype='application/json; charset=utf-8'):
-        body=data if isinstance(data,bytes) else data.encode(); self.send_response(status); self.send_header('Content-Type',ctype); self.send_header('Content-Length',str(len(body))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(body)
+        body=data if isinstance(data,bytes) else data.encode(); self.send_response(status); self.send_header('Content-Type',ctype); self.send_header('Content-Length',str(len(body))); self.send_header('Cache-Control','no-store'); self.send_header('X-Content-Type-Options','nosniff'); self.send_header('X-Frame-Options','DENY'); self.send_header('Referrer-Policy','strict-origin-when-cross-origin'); self.send_header('Permissions-Policy','camera=(), microphone=(), geolocation=()'); self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
+        if self.headers.get('X-Forwarded-Proto','').lower()=='https' or self.headers.get('Host','').endswith('.onrender.com'): self.send_header('Strict-Transport-Security','max-age=31536000; includeSubDomains');
+        self.end_headers(); self.wfile.write(body)
     def body(self):
-        n=int(self.headers.get('Content-Length','0')); return json.loads(self.rfile.read(n) or b'{}')
+        try: n=int(self.headers.get('Content-Length','0'))
+        except ValueError: raise ValueError('Invalid Content-Length')
+        if n<0 or n>MAX_BODY_BYTES: raise ValueError('Request body too large')
+        return json.loads(self.rfile.read(n) or b'{}')
+    def same_origin(self):
+        origin=self.headers.get('Origin','').strip()
+        if not origin: return True
+        host=self.headers.get('Host','').strip()
+        return origin in {f'https://{host}',f'http://{host}'}
+    def client_ip(self):
+        return self.headers.get('X-Forwarded-For',self.client_address[0]).split(',')[0].strip()
     def token(self):
         raw=self.headers.get('Cookie','');
         for part in raw.split(';'):
@@ -53,9 +71,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if self.path.strip()=='/' or path=='/': return self.send_data(200,(STATIC/'index.html').read_bytes(),'text/html; charset=utf-8')
             if path=='/setup':
-                owner_login=os.getenv('GHALI_OWNER_TAILSCALE_LOGIN','').strip().lower()
-                ts_login=self.headers.get('Tailscale-User-Login','').strip().lower()
-                if not owner_login or ts_login!=owner_login: return self.send_data(403,'Owner setup is available only from the authorized Tailscale identity','text/plain; charset=utf-8')
+                setup_enabled=os.getenv('GHALI_ENABLE_SETUP','false').lower() in {'1','true','yes','on'}
+                local_client=self.client_address[0] in {'127.0.0.1','::1'}
+                if not setup_enabled or not local_client: return self.send_data(403,'Owner setup is disabled','text/plain; charset=utf-8')
                 if STATE.auth.list_users(): return self.send_data(403,'Setup already completed','text/plain; charset=utf-8')
                 return self.send_data(200,b'''<!doctype html><meta name=viewport content=width=device-width><title>GHALI Setup</title><style>body{font:16px sans-serif;max-width:420px;margin:60px auto;padding:20px}input,button{width:100%;padding:12px;margin:8px 0;box-sizing:border-box}</style><h1>GHALI AI Setup</h1><p>Create the owner account. This page is available only from the local computer.</p><form method=post action=/api/setup><input name=username value=ghaly required><input name=password type=password minlength=8 placeholder='Owner password (8+ chars)' required><input name=confirm type=password minlength=8 placeholder='Confirm password' required><button>Create owner account</button></form>''','text/html; charset=utf-8')
             if path.startswith('/static/'):
@@ -67,7 +85,10 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/me':
                 u=self.user()
                 admin_control=bool(u and u.get('role')=='admin')
-                return self.send_data(200,jb(({'authenticated':True,**u,'admin_control':admin_control}) if u else {'authenticated':False}))
+                if u:
+                    safe={k:v for k,v in u.items() if k!='password_hash'}
+                    return self.send_data(200,jb({'authenticated':True,**safe,'admin_control':admin_control}))
+                return self.send_data(200,jb({'authenticated':False}))
             if path=='/healthz':
                 return self.send_data(200,jb({'ok':True,'app':'GHALI AI'}))
             if path=='/api/status':
@@ -103,15 +124,17 @@ class Handler(BaseHTTPRequestHandler):
             if not path.startswith('/api/') and not path.startswith('/static/'):
                 return self.send_data(200,(STATIC/'index.html').read_bytes(),'text/html; charset=utf-8')
             return self.send_data(404,jb({'error':'Not found','path':path,'raw':self.path}))
-        except Exception as e: return self.send_data(500,jb({'error':str(e)}))
+        except Exception:
+            return self.send_data(500,jb({'error':'Internal server error'}))
     def do_POST(self):
         path=urlparse(self.path).path or '/'
         try:
+            if not self.same_origin(): return self.send_data(403,jb({'error':'Cross-origin request blocked'}))
             d=self.body()
             if path=='/api/setup':
-                owner_login=os.getenv('GHALI_OWNER_TAILSCALE_LOGIN','').strip().lower()
-                ts_login=self.headers.get('Tailscale-User-Login','').strip().lower()
-                if not owner_login or ts_login!=owner_login: return self.send_data(403,jb({'error':'Owner setup is available only from the authorized Tailscale identity'}))
+                setup_enabled=os.getenv('GHALI_ENABLE_SETUP','false').lower() in {'1','true','yes','on'}
+                local_client=self.client_address[0] in {'127.0.0.1','::1'}
+                if not setup_enabled or not local_client: return self.send_data(403,jb({'error':'Owner setup is disabled'}))
                 if STATE.auth.list_users(): return self.send_data(403,jb({'error':'Setup already completed'}))
                 u=str(d.get('username','ghaly')).strip(); pw=str(d.get('password','')); cp=str(d.get('confirm',''))
                 if len(pw)<8 or pw!=cp: return self.send_data(400,jb({'error':'Password must match and be at least 8 characters'}))
@@ -133,8 +156,15 @@ class Handler(BaseHTTPRequestHandler):
                 cid=int(path.split('/')[-2]); STATE.db.delete_conversation(cid,u['id'])
                 return self.send_data(200,jb({'ok':True}))
             if path=='/api/login':
+                now=time.time(); ip=self.client_ip()
+                with LOGIN_LOCK:
+                    attempts=[t for t in LOGIN_ATTEMPTS.get(ip,[]) if now-t<LOGIN_WINDOW]
+                    if len(attempts)>=LOGIN_MAX_FAILURES: return self.send_data(429,jb({'error':'Too many login attempts. Try again later.'}))
                 token=STATE.auth.login(str(d.get('username','')),str(d.get('password','')))
-                if not token:return self.send_data(401,jb({'error':'Invalid username or password'}))
+                if not token:
+                    with LOGIN_LOCK: LOGIN_ATTEMPTS[ip]=attempts+[now]
+                    return self.send_data(401,jb({'error':'Invalid username or password'}))
+                with LOGIN_LOCK: LOGIN_ATTEMPTS.pop(ip,None)
                 self._last_token=token
                 return self.send_data(200,jb({'ok':True}))
             if path=='/api/logout':
@@ -170,8 +200,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not self.require_admin():return
                 STATE.auth.set_active(int(d['id']),bool(d.get('active',True))); return self.send_data(200,jb({'ok':True}))
             return self.send_data(404,jb({'error':'Not found'}))
-        except (KeyError,ValueError,TypeError) as e:return self.send_data(400,jb({'error':str(e)}))
-        except Exception as e:return self.send_data(500,jb({'error':str(e)}))
+        except (KeyError,ValueError,TypeError,json.JSONDecodeError) as e:return self.send_data(400,jb({'error':str(e)}))
+        except Exception:
+            return self.send_data(500,jb({'error':'Internal server error'}))
     def end_headers(self):
         if hasattr(self,'_last_token'): self.send_header('Set-Cookie',f'ghali_session={self._last_token}; Path=/; HttpOnly; SameSite=Lax; Secure'); del self._last_token
         super().end_headers()

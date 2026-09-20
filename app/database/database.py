@@ -9,6 +9,7 @@ class Database:
         self.db_path = Path(db_path or DATABASE_PATH)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.connection.execute("PRAGMA foreign_keys=ON")
         self.connection.row_factory = sqlite3.Row
         self.cursor = self.connection.cursor()
 

@@ -12,6 +12,8 @@ services:
         value: gpt-5.6-luna
       - key: OPENAI_API_KEY
         sync: false
+      - key: GHALI_ENABLE_SETUP
+        value: "false"
       - key: GHALI_ADMIN_USER
         value: ghaly
       - key: GHALI_ADMIN_PASSWORD

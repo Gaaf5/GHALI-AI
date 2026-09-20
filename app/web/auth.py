@@ -26,6 +26,15 @@ class AuthManager:
     def _ensure_schema(self):
         self.db.cursor.executescript("""
         CREATE TABLE IF NOT EXISTS auth_users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', active INTEGER NOT NULL DEFAULT 1, permissions TEXT NOT NULL DEFAULT 'chat', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS auth_sessions (
+            token_hash TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES auth_users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+        CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions(expires_at);
         """)
         self.db.connection.commit()
     def ensure_admin(self, username, password):
@@ -39,22 +48,30 @@ class AuthManager:
         row=self.db.cursor.execute("SELECT * FROM auth_users WHERE lower(username)=lower(?) AND active=1",(username.strip(),)).fetchone()
         if not row or not verify_password(password,row['password_hash']): return None
         expires=int(time.time())+SESSION_TTL
-        payload=f"{row['id']}.{expires}"
-        signature=hmac.new(row['password_hash'].encode(),payload.encode(),hashlib.sha256).hexdigest()
-        return f"{payload}.{signature}"
+        token=secrets.token_urlsafe(32)
+        token_hash=hashlib.sha256(token.encode()).hexdigest()
+        self.db.cursor.execute("DELETE FROM auth_sessions WHERE expires_at<?",(int(time.time()),))
+        self.db.cursor.execute("INSERT INTO auth_sessions(token_hash,user_id,expires_at) VALUES(?,?,?)",(token_hash,row['id'],expires))
+        self.db.connection.commit()
+        return token
     def user(self, token):
         try:
-            user_id,expires,signature=token.split(".",2)
-            if int(expires)<int(time.time()): return None
-            row=self.db.cursor.execute("SELECT * FROM auth_users WHERE id=? AND active=1",(int(user_id),)).fetchone()
-            if not row: return None
-            payload=f"{row['id']}.{int(expires)}"
-            expected=hmac.new(row['password_hash'].encode(),payload.encode(),hashlib.sha256).hexdigest()
-            if not hmac.compare_digest(signature,expected): return None
-            return dict(row)
+            if not token: return None
+            now=int(time.time())
+            token_hash=hashlib.sha256(token.encode()).hexdigest()
+            row=self.db.cursor.execute("""
+                SELECT u.* FROM auth_users u
+                JOIN auth_sessions s ON s.user_id=u.id
+                WHERE s.token_hash=? AND s.expires_at>=? AND u.active=1
+            """,(token_hash,now)).fetchone()
+            return dict(row) if row else None
         except Exception:
             return None
-    def logout(self,token): return None
+    def logout(self,token):
+        if token:
+            token_hash=hashlib.sha256(token.encode()).hexdigest()
+            self.db.cursor.execute("DELETE FROM auth_sessions WHERE token_hash=?",(token_hash,))
+            self.db.connection.commit()
     def allowed(self,user,service):
         return bool(user and (user['role']=='admin' or service in user['permissions'].split(',')))
     def list_users(self):
