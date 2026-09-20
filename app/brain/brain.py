@@ -1,6 +1,7 @@
 from app.knowledge.store import KnowledgeStore
 from app.memory import MemoryManager
 from app.memory.auto_memory import AutoMemory
+from app.memory.learning import ContinuousLearner
 from app.tools.registry import load_defaults, run_tool
 from .context import build_context
 from .conversation import Conversation
@@ -14,6 +15,7 @@ class Brain:
         self.knowledge = knowledge or KnowledgeStore()
         self.memory = memory or MemoryManager()
         self.auto_memory = AutoMemory(self.memory)
+        self.learner = ContinuousLearner(self.memory)
         self.conversation = Conversation(max_messages=max_history)
         load_defaults()
 
@@ -32,9 +34,16 @@ class Brain:
         if text.lower() in {"status", "system status"}:
             return self._status()
         self.conversation.add_user(text)
-        self.auto_memory.capture(text)
+        learning = self.learner.learn(text)
         retrieved = build_context(self.knowledge, self.memory, text)
-        prompt = SYSTEM_PROMPT
+        if learning.candidate_id:
+            prompt_note = (
+                "\n\nLEARNING NOTE: This message was stored as a pending memory candidate "
+                "because it may be durable but was not explicit enough to auto-confirm."
+            )
+        else:
+            prompt_note = ""
+        prompt = SYSTEM_PROMPT + prompt_note
         if retrieved.knowledge:
             prompt += "\n\nRetrieved project knowledge:\n" + retrieved.knowledge
         if retrieved.memory:

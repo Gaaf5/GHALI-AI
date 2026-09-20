@@ -117,6 +117,11 @@ class Handler(BaseHTTPRequestHandler):
                     meta=STATE.knowledge.get_metadata(path_item)
                     docs.append({'title':meta.get('title',path_item.stem),'source':meta.get('source','project'),'type':meta.get('type','text'),'file':path_item.name})
                 return self.send_data(200,jb(docs))
+            if path=='/api/memory/candidates':
+                u=self.require('chat')
+                if not u:return
+                rows=STATE.memory.store.candidates()
+                return self.send_data(200,jb([dict(r) for r in rows]))
             if path=='/api/admin/users':
                 u=self.require_admin();
                 if not u:return
@@ -169,6 +174,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(200,jb({'ok':True}))
             if path=='/api/logout':
                 STATE.auth.logout(self.token()); return self.send_data(200,jb({'ok':True}))
+            if path=='/api/memory/candidates/resolve':
+                u=self.require('chat')
+                if not u:return
+                cid=int(d.get('id',0)); accept=bool(d.get('accept',False))
+                mid=STATE.memory.store.resolve_candidate(cid,accept)
+                return self.send_data(200,jb({'ok':mid is not None if accept else True,'memory_id':mid}))
             if path=='/api/chat':
                 u=self.require('chat')
                 if not u:return
