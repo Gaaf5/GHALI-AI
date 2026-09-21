@@ -11,6 +11,7 @@ from app.knowledge.store import KnowledgeStore
 from app.llm.factory import create_llm
 from app.memory import MemoryManager
 from app.tools.formulation import solve_named_formulation
+from app.tools.lab import catalog as lab_catalog, simulate as lab_simulate, sweep as lab_sweep
 from app.web.auth import AuthManager
 
 ROOT=Path(__file__).resolve().parent; STATIC=ROOT/'static'; STATE=None
@@ -195,6 +196,24 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/formulate':
                 if not self.require('formulation'):return
                 r=solve_named_formulation(str(d['target']),float(d['batch_kg']),list(d['materials']),float(d.get('tolerance_pct',.2)),d.get('limits') or {},d.get('objective')); return self.send_data(200,jb(r))
+            if path=='/api/lab/run':
+                u=self.require('chat')
+                if not u:return
+                result=lab_simulate(d)
+                exp_id=STATE.db.save_lab_experiment(u['id'],str(d.get('name','Virtual experiment')),d,result)
+                result['experiment_id']=exp_id
+                return self.send_data(200,jb(result))
+            if path=='/api/lab/sweep':
+                if not self.require('chat'):return
+                return self.send_data(200,jb(lab_sweep(d.get('base',{}),d.get('variables',{}),int(d.get('max_runs',1000000)))))
+            if path=='/api/lab/materials':
+                u=self.require('chat')
+                if not u:return
+                return self.send_data(200,jb(lab_catalog()))
+            if path=='/api/lab/experiments':
+                u=self.require('chat')
+                if not u:return
+                return self.send_data(200,jb(STATE.db.list_lab_experiments(u['id'])))
             if path=='/api/materials':
                 if not self.require('materials_admin'):return
                 STATE.db.upsert_raw_material(d['name'],float(d.get('n_pct',0)),float(d.get('p2o5_pct',0)),float(d.get('k2o_pct',0)),d.get('moisture_pct'),d.get('assay_pct'),d.get('source','user'),bool(d.get('active',True))); return self.send_data(200,jb(STATE.db.list_raw_materials()))

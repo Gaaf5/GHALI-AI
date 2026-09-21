@@ -52,6 +52,18 @@ class Database:
         );
         CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id, id);
+        CREATE TABLE IF NOT EXISTS lab_experiments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL DEFAULT 'Virtual experiment',
+            input_json TEXT NOT NULL,
+            result_json TEXT NOT NULL,
+            validated INTEGER NOT NULL DEFAULT 0,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES auth_users(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_lab_experiments_user ON lab_experiments(user_id, created_at DESC);
         CREATE TABLE IF NOT EXISTS raw_material_aliases (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             raw_material_id INTEGER NOT NULL,
@@ -138,6 +150,29 @@ class Database:
             LIMIT 1
         """, (normalized, normalized)).fetchone()
         return dict(row) if row else None
+
+    def save_lab_experiment(self, user_id, name, input_data, result_data, validated=False, notes=''):
+        import json
+        self.cursor.execute(
+            "INSERT INTO lab_experiments(user_id,name,input_json,result_json,validated,notes) VALUES(?,?,?,?,?,?)",
+            (user_id, name.strip() or 'Virtual experiment', json.dumps(input_data,ensure_ascii=False),
+             json.dumps(result_data,ensure_ascii=False), int(bool(validated)), notes)
+        )
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def list_lab_experiments(self, user_id, limit=30):
+        import json
+        rows=self.cursor.execute(
+            "SELECT id,name,input_json,result_json,validated,notes,created_at FROM lab_experiments WHERE user_id=? ORDER BY id DESC LIMIT ?",
+            (user_id,int(limit))).fetchall()
+        out=[]
+        for r in rows:
+            d=dict(r)
+            d['input']=json.loads(d.pop('input_json'))
+            d['result']=json.loads(d.pop('result_json'))
+            out.append(d)
+        return out
 
     def close(self):
         self.connection.close()
