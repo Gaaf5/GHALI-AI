@@ -37,7 +37,8 @@ function renderLabResult(d){
   const warns=(d.warnings||[]).map(x=>'<div class="lab-warning">⚠ '+labEsc(x)+'</div>').join('');
   $('#labResult').innerHTML='<div class="lab-kpis"><div><span>Uniformity</span><b>'+d.mixing_uniformity_pct.toFixed(1)+'%</b></div>'+
     '<div><span>Undissolved</span><b>'+u.toFixed(2)+' g</b></div><div><span>Density</span><b>'+d.estimated_density_g_ml.toFixed(3)+' g/mL</b></div></div>'+
-    '<h4>Dissolved</h4>'+rows+(left?'<h4>Undissolved</h4>'+left:'')+warns+
+    '<h4>Dissolved</h4>'+rows+(left?'<h4>Undissolved</h4>'+left:'')+
+    ((d.chemistry?.compatibility_risks||[]).length?'<h4>Compatibility / precipitation screen</h4>'+d.chemistry.compatibility_risks.map(x=>'<div class="lab-warning">⚗ '+labEsc(x.message)+'</div>').join(''):'')+warns+
     '<div class="lab-model">'+labEsc(d.note)+'</div>';
 }
 async function runLab(){
@@ -57,7 +58,7 @@ async function runLabSweep(){
     const temp=rangeInclusive($('#swT0').value,$('#swT1').value,$('#swTs').value);
     const count=rpm.length*temp.length; $('#labSweepCount').textContent=count+' runs';
     if(count>1000000)throw Error('Reduce the sweep; maximum is 1,000,000 virtual runs per request.');
-    const d=await api('/api/lab/sweep',{method:'POST',body:JSON.stringify({base,variables:{rpm,temperature_c:temp},max_runs:250000})});
+    const d=await api('/api/lab/sweep',{method:'POST',body:JSON.stringify({base,variables:{rpm,temperature_c:temp},max_runs:1000000})});
     $('#labSweepResult').innerHTML='<div class="lab-sweep-summary"><b>'+d.runs.toLocaleString()+' runs completed</b>'+
       '<span>Best screen: '+d.best.undissolved_g.toFixed(2)+' g undissolved · '+d.best.uniformity_pct.toFixed(1)+'% uniformity</span>'+
       '<code>'+labEsc(JSON.stringify(d.best.variables))+'</code></div>';

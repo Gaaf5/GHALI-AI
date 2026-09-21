@@ -110,8 +110,11 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     if temp>100 and any(MATERIALS[resolve(a.get("material",""))]["kind"]=="solvent" for a in additions):
         warnings.append("Boiling/volatility may dominate above the solvent's boiling range; this model does not simulate pressure.")
     confidence="screening"
+    from app.tools.lab_chemistry import analyze as analyze_chemistry
+    chemistry=analyze_chemistry(experiment,dissolved)
+    warnings.extend(x["message"] for x in chemistry["compatibility_risks"])
     return {
-        "status":"SIMULATED","confidence":confidence,"model":"GHALI Virtual Lab v1",
+        "status":"SIMULATED","confidence":confidence,"model":"GHALI Virtual Lab v2",
         "conditions":{"temperature_c":temp,"rpm":rpm,"duration_s":duration,"working_volume_l":volume,
                       "mixing_index":round(rate_index,4)},
         "mass_balance":{"input_g":round(total_mass,6),"dissolved_solids_g":round(dissolved_total,6),
@@ -120,8 +123,9 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "undissolved_g":{k:round(v,6) for k,v in undissolved.items() if v>1e-8},
         "estimated_density_g_ml":round(density,6),
         "mixing_uniformity_pct":round(uniformity,3),
+        "chemistry":chemistry,
         "warnings":warnings,"events":events,
-        "note":"Simulation is not a physical experiment. Validate critical formulations with laboratory or plant data before production use."
+        "note":"Simulation is a screening model. Chemistry rules require validated property data and laboratory calibration before production use."
     }
 def sweep(base: dict[str,Any], variables: dict[str,list[float]], max_runs=250000) -> dict[str,Any]:
     import itertools

@@ -34,3 +34,12 @@ def test_sweep_count():
             {"rpm":[100,300,500],"temperature_c":[20,40]})
     assert r["runs"] == 6
     assert r["best"] is not None
+
+from app.tools.lab_chemistry import compatibility, ionic_strength
+
+def test_calcium_sulfate_compatibility_risk_is_flagged():
+    risks=compatibility({"calcium_nitrate":100,"sop":100})
+    assert any("CaSO4"==x["product"] for x in risks)
+
+def test_ionic_strength_calculation():
+    assert abs(ionic_strength([{"moles_per_l":1,"charge":1},{"moles_per_l":1,"charge":-1}])-1.0)<1e-9

@@ -1,0 +1,36 @@
+{
+  "materials": 24,
+  "scenarios_per_material": 100,
+  "total_scenarios": 2400,
+  "status_counts": {
+    "SIMULATED": 2400
+  },
+  "material_counts": {
+    "water": 100,
+    "ethanol": 100,
+    "isopropanol": 100,
+    "methanol": 100,
+    "acetone": 100,
+    "glycerol": 100,
+    "urea": 100,
+    "map": 100,
+    "dap": 100,
+    "mkp": 100,
+    "sop": 100,
+    "nop": 100,
+    "ammonium_nitrate": 100,
+    "ammonium_sulfate": 100,
+    "urea_phosphate": 100,
+    "potassium_chloride": 100,
+    "magnesium_sulfate": 100,
+    "calcium_nitrate": 100,
+    "calcium_chloride": 100,
+    "magnesium_nitrate": 100,
+    "citric_acid": 100,
+    "sulfuric_acid": 100,
+    "nitric_acid": 100,
+    "phosphoric_acid": 100
+  },
+  "output": "data\\lab_scenarios\\material_scenarios.jsonl",
+  "note": "Synthetic screening scenarios; not experimental validation or production truth."
+}
