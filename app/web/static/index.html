@@ -58,8 +58,7 @@
 <ellipse cx="210" cy="96" rx="118" ry="22" fill="none" stroke="#bfe7f5" stroke-opacity=".45" stroke-width="4"/>
 <path d="M92 96 L92 500 Q210 548 328 500 L328 96" fill="url(#glass)" stroke="#bfe7f5" stroke-opacity=".55" stroke-width="4"/>
 <g clip-path="url(#vesselClip)"><rect id="simLiquid" x="85" y="300" width="250" height="260" fill="url(#liquid)"/><path id="simSurface" d="M86 300 Q210 287 334 300" fill="none" stroke="#8bd8f6" stroke-opacity=".65"/>
-<g id="simParticles"></g><g id="simPrecipitate"></g><g id="simSwirl"><path d="M110 360 C150 320 270 320 310 360" fill="none" stroke="#9ce7ff" stroke-opacity=".25" stroke-width="5"/><path d="M115 420 C165 455 255 455 305 420" fill="none" stroke="#9ce7ff" stroke-opacity=".2" stroke-width="4"/></g></g>
-<g id="simImpeller"><line x1="210" y1="285" x2="210" y2="438" stroke="#c9d6dd" stroke-width="5"/><g transform="translate(210 438)"><circle r="9" fill="#d5e1e6"/><path d="M-5 -5 C-48 -42 -70 -28 -54 8 C-42 34 -20 30 -5 5Z" fill="#d5e1e6"/><path d="M5 -5 C48 -42 70 -28 54 8 C42 34 20 30 5 5Z" fill="#d5e1e6"/><path d="M0 6 C-8 48 12 61 28 31 C39 10 25 -2 4 -6Z" fill="#d5e1e6"/></g></g>
+<g id="simParticles"></g><g id="simPrecipitate"></g></g>
 <text x="210" y="570" text-anchor="middle" fill="#8fa1ad" font-size="14">TRANSPARENT MIXING VESSEL</text>
 </svg>
 <div id="simOverlay" class="sim-overlay"><b>READY</b><span>Add water and start the experiment</span></div>
@@ -74,7 +73,15 @@
 <div class="card lab-sweep-card">
 <div class="section-title"><div><h3>Scenario engine</h3><p class="muted">Deterministic parameter sweeps for large virtual trial sets.</p></div><span id="labSweepCount" class="engine-badge">0 runs</span></div>
 <div class="sweep-grid"><label>RPM start<input id="swR0" type="number" value="100"></label><label>RPM end<input id="swR1" type="number" value="800"></label><label>RPM step<input id="swRs" type="number" value="100"></label><label>Temp start<input id="swT0" type="number" value="20"></label><label>Temp end<input id="swT1" type="number" value="80"></label><label>Temp step<input id="swTs" type="number" value="10"></label></div>
-<button id="labSweep" class="primary">Run scenario sweep</button><div id="labSweepResult"></div><div class="lab-history"><h4>Experiment history</h4><div id="labHistory"><span class="muted">No experiments loaded.</span></div></div>
+<button id="labSweep" class="primary">Run scenario sweep</button><div id="labSweepResult"></div>
+<div class="lab-combination-engine">
+<div class="section-title"><div><h3>Combinatorial experiment engine</h3><p class="muted">Tests ordered material sequences systematically, including A+B and B+A, then longer sequences.</p></div><span id="labComboCount" class="engine-badge">0 combinations</span></div>
+<label>Candidate materials<select id="labComboMaterials" multiple size="8"></select></label>
+<div class="sweep-grid"><label>Level start<input id="labComboR0" type="number" min="1" max="24" value="2"></label><label>Level end<input id="labComboR1" type="number" min="1" max="24" value="2"></label><label>Batch size<input id="labComboLimit" type="number" min="1" max="10000" value="1000"></label><label>Start index<input id="labComboStart" type="number" min="0" value="0"></label><label>Dose / material (g)<input id="labComboDose" type="number" min="0.01" value="100"></label><label>Spacing (s)<input id="labComboSpacing" type="number" min="0" value="10"></label></div>
+<div class="lab-actions"><label class="inline-control"><input id="labComboOrdered" type="checkbox" checked><span>Order matters</span></label><label class="inline-control"><input id="labComboRepeats" type="checkbox" checked><span>Allow repeats</span></label><button id="labComboRun" class="primary">Run combination batch</button></div>
+<div id="labComboResult" class="lab-combo-result"><div class="empty">Select candidate materials and start a batch.</div></div>
+</div>
+<div class="lab-history"><h4>Experiment history</h4><div id="labHistory"><span class="muted">No experiments loaded.</span></div></div>
 </div>
 </section>
 

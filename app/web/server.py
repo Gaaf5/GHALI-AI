@@ -12,6 +12,7 @@ from app.llm.factory import create_llm
 from app.memory import MemoryManager
 from app.tools.formulation import solve_named_formulation
 from app.tools.lab import catalog as lab_catalog, simulate as lab_simulate, sweep as lab_sweep
+from app.tools.lab_combinations import run_combination_batch
 from app.web.auth import AuthManager
 
 ROOT=Path(__file__).resolve().parent; STATIC=ROOT/'static'; STATE=None
@@ -206,6 +207,12 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/lab/sweep':
                 if not self.require('chat'):return
                 return self.send_data(200,jb(lab_sweep(d.get('base',{}),d.get('variables',{}),int(d.get('max_runs',1000000)))))
+            if path=='/api/lab/combinations':
+                if not self.require('chat'):return
+                return self.send_data(200,jb(run_combination_batch(
+                    list(d.get('material_ids',[])), d.get('base',{}), d.get('levels'),
+                    int(d.get('start',0)), int(d.get('limit',1000)), bool(d.get('ordered',True)),
+                    bool(d.get('repeats',True)), float(d.get('dose_g',100.0)), float(d.get('spacing_s',10.0)))))
             if path=='/api/lab/materials':
                 u=self.require('chat')
                 if not u:return
