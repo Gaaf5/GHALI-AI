@@ -1,0 +1,93 @@
+{
+  "total": 10000,
+  "materials": 24,
+  "per_material_min": 416,
+  "per_material_max": 417,
+  "status_counts": {
+    "SIMULATED": 10000
+  },
+  "top_warnings": [
+    [
+      "High temperature: treat vapor pressure/material compatibility as a separate safety check.",
+      1968
+    ],
+    [
+      "Calcium-phosphate precipitation is a compatibility risk.",
+      813
+    ],
+    [
+      "mkp: equilibrium solubility capacity is approximately 231.1 g at 25.0 C.",
+      32
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 122.7 g at 25.0 C.",
+      31
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 133.5 g at 45.0 C.",
+      31
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 149.7 g at 75.0 C.",
+      31
+    ],
+    [
+      "mkp: equilibrium solubility capacity is approximately 210.7 g at 5.0 C.",
+      30
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 128.1 g at 35.0 C.",
+      30
+    ],
+    [
+      "mkp: equilibrium solubility capacity is approximately 241.3 g at 35.0 C.",
+      30
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 160.5 g at 95.0 C.",
+      30
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 111.9 g at 5.0 C.",
+      29
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 117.3 g at 15.0 C.",
+      29
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 138.9 g at 55.0 C.",
+      29
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 144.3 g at 65.0 C.",
+      29
+    ],
+    [
+      "sop: equilibrium solubility capacity is approximately 155.1 g at 85.0 C.",
+      29
+    ],
+    [
+      "mkp: equilibrium solubility capacity is approximately 220.9 g at 15.0 C.",
+      28
+    ],
+    [
+      "potassium_chloride: equilibrium solubility capacity is approximately 457.4 g at 95.0 C.",
+      25
+    ],
+    [
+      "nop: equilibrium solubility capacity is approximately 294.7 g at 5.0 C.",
+      24
+    ],
+    [
+      "map: equilibrium solubility capacity is approximately 391.0 g at 15.0 C.",
+      24
+    ],
+    [
+      "urea_phosphate: equilibrium solubility capacity is approximately 488.8 g at 15.0 C.",
+      24
+    ]
+  ],
+  "output": "data\\lab_scenarios\\scenarios_10000.jsonl",
+  "note": "Synthetic screening simulations, not validated experimental measurements."
+}
