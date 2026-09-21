@@ -1,11 +1,27 @@
 let labCatalog=[];
 let labMixerOn=false;
+const LAB_FALLBACK_CATALOG=[
+  ["water","الماء","solvent"],["ethanol","الإيثانول","solvent"],["isopropanol","الأيزوبروبانول","solvent"],["methanol","الميثانول","solvent"],["acetone","الأسيتون","solvent"],["glycerol","الجليسرول","solvent"],
+  ["urea","اليوريا","fertilizer"],["map","MAP","fertilizer"],["dap","DAP","fertilizer"],["mkp","MKP","fertilizer"],["sop","SOP","fertilizer"],["nop","نترات البوتاسيوم","fertilizer"],["ammonium_nitrate","نترات الأمونيوم","fertilizer"],["ammonium_sulfate","كبريتات الأمونيوم","fertilizer"],["urea_phosphate","فوسفات اليوريا","fertilizer"],["potassium_chloride","كلوريد البوتاسيوم","fertilizer"],["calcium_nitrate","نترات الكالسيوم","fertilizer"],
+  ["magnesium_sulfate","كبريتات المغنيسيوم","salt"],["calcium_chloride","كلوريد الكالسيوم","salt"],["magnesium_nitrate","نترات المغنيسيوم","salt"],
+  ["citric_acid","حمض الستريك","acid"],["sulfuric_acid","حمض الكبريتيك","acid"],["nitric_acid","حمض النيتريك","acid"],["phosphoric_acid","حمض الفوسفوريك","acid"]
+].map(([id,name,kind])=>({id,name,kind}));
 let labAnimation=null;
 let labRunResult=null;
 let labStartedAt=null;
 const PARTICLE_COLORS={water:"#7ed9ff",urea:"#f3f3f3",map:"#e8d39a",dap:"#d8c08a",mkp:"#d7d0a5",sop:"#c9b985",nop:"#dce4ea"};
 function labEsc(s){return esc(s)}
-async function loadLabCatalog(){if(labCatalog.length)return;labCatalog=await api('/api/lab/materials');}
+async function loadLabCatalog(){
+  if(Array.isArray(labCatalog)&&labCatalog.length)return;
+  try{
+    const d=await api('/api/lab/materials');
+    if(!Array.isArray(d)||!d.length)throw Error('Lab material catalog is empty');
+    labCatalog=d;
+  }catch(e){
+    console.warn('Lab catalog API failed; using built-in catalog:',e);
+    labCatalog=LAB_FALLBACK_CATALOG;
+  }
+}
 function materialName(id){const m=labCatalog.find(x=>x.id===id);return m?m.name:id}
 function materialKind(id){const m=labCatalog.find(x=>x.id===id);return m?m.kind:'solid'}
 function labOptions(selected='water'){
@@ -20,6 +36,7 @@ function renumberRows(){
   $('#labAdditionCount').textContent=rows.length+' material'+(rows.length===1?'':'s');
 }
 function addLabRow(material='water',mass=100,time=0){
+  if(!labCatalog.length)labCatalog=LAB_FALLBACK_CATALOG;
   const box=$('#labAdditions'), row=document.createElement('div');
   row.className='lab-add-row';
   row.innerHTML='<span class="lab-order">1</span>'+
@@ -34,13 +51,25 @@ function addLabRow(material='water',mass=100,time=0){
   renumberRows();
 }
 function labExperiment(){
-  const duration=Math.max(0,+$('#labTime').value||0);
+  const volume=+$('#labVolume').value||0;
+  const temp=+$('#labTemp').value;
+  const rpm=+$('#labRpm').value||0;
+  const duration=+$('#labTime').value||0;
+  const playback=+$('#labPlayback').value||1;
+  if(volume<0.1||volume>1000)throw Error('Working volume must be between 0.1 and 1000 L.');
+  if(!Number.isFinite(temp)||temp<-50||temp>180)throw Error('Temperature must be between -50 and 180 °C.');
+  if(rpm<0||rpm>1800)throw Error('Agitation must be between 0 and 1800 RPM.');
+  if(duration<0||duration>86400)throw Error('Experiment time must be between 0 and 86400 s.');
+  if(playback<0.25||playback>100)throw Error('Playback speed must be between 0.25× and 100×.');
   const additions=[...document.querySelectorAll('.lab-add-row')].map((r,i)=>({
     order:i+1,material:r.querySelector('.lab-material').value,
     mass_g:+r.querySelector('.lab-mass').value||0,time_s:+r.querySelector('.lab-add-time').value||0
   }));
-  return {vessel:{working_volume_l:+$('#labVolume').value||1},temperature_c:+$('#labTemp').value||20,
-    rpm:labMixerOn?(+$('#labRpm').value||0):0,duration_s:duration,additions};
+  if(!additions.length)throw Error('Add at least one material before starting the experiment.');
+  if(additions.some(a=>a.mass_g<=0))throw Error('Every material must have a mass greater than 0 g.');
+  if(additions.some(a=>a.time_s<0||a.time_s>duration))throw Error('Each addition time must be within the experiment duration.');
+  return {vessel:{working_volume_l:volume},temperature_c:temp,
+    rpm:labMixerOn?rpm:0,duration_s:duration,additions};
 }
 function setLabState(state){$('#labState').textContent=state;$('#simStatus').textContent=state;}
 function formatClock(sec){sec=Math.max(0,sec);return String(Math.floor(sec/60)).padStart(2,'0')+':'+(sec%60).toFixed(1).padStart(4,'0');}
@@ -135,7 +164,10 @@ async function runLab(){
     const exp=labExperiment();$('#labResult').innerHTML='<div class="empty">Calculating chemistry and mass balance…</div>';
     const d=await api('/api/lab/run',{method:'POST',body:JSON.stringify(exp)});labRunResult=d;renderResult(d);animateExperiment(d);
     await loadLabHistory();
-  }catch(e){$('#labResult').innerHTML='<div class="bad">'+labEsc(e.message)+'</div>';setLabState('ERROR');}
+  }catch(e){
+    $('#labResult').innerHTML='<div class="bad"><b>Experiment not started</b><br>'+labEsc(e.message)+'</div>';
+    setLabState('ERROR');
+  }
 }
 function rangeInclusive(a,b,step){
   a=+a;b=+b;step=Math.abs(+step||1);if(step<=0)return[];const out=[];

@@ -30,11 +30,11 @@
 <div class="card">
 <div class="section-title"><div><h3>Experiment setup</h3><p class="muted">The order number controls when each material enters the vessel.</p></div><span id="labState" class="lab-state">READY</span></div>
 <div class="lab-fields">
-<label>Working volume (L)<input id="labVolume" type="number" min="0.1" step="0.1" value="10"></label>
-<label>Temperature (°C)<input id="labTemp" type="number" step="0.1" value="20"></label>
-<label>Agitation (RPM)<input id="labRpm" type="number" min="0" step="10" value="300"></label>
-<label>Experiment time (s)<input id="labTime" type="number" min="0" step="1" value="120"></label>
-<label>Playback speed (×)<input id="labPlayback" type="number" min="0.25" step="0.25" value="10"></label>
+<label>Working volume (L)<input id="labVolume" type="number" min="0.1" max="1000" step="0.1" value="10"></label>
+<label>Temperature (°C)<input id="labTemp" type="number" min="-50" max="180" step="0.1" value="20"></label>
+<label>Agitation (RPM)<input id="labRpm" type="number" min="0" max="1800" step="10" value="300"></label>
+<label>Experiment time (s)<input id="labTime" type="number" min="0" max="86400" step="1" value="120"></label>
+<label>Playback speed (×)<input id="labPlayback" type="number" min="0.25" max="100" step="0.25" value="10"></label>
 </div>
 <div class="lab-note">Playback speed only controls the animation. The chemistry engine still uses the configured experiment time. Results are a screening simulation and not a substitute for a physical laboratory test.</div>
 <div class="addition-title"><h3>Addition sequence</h3><span id="labAdditionCount">0 materials</span></div>
@@ -59,7 +59,7 @@
 <path d="M92 96 L92 500 Q210 548 328 500 L328 96" fill="url(#glass)" stroke="#bfe7f5" stroke-opacity=".55" stroke-width="4"/>
 <g clip-path="url(#vesselClip)"><rect id="simLiquid" x="85" y="300" width="250" height="260" fill="url(#liquid)"/><path id="simSurface" d="M86 300 Q210 287 334 300" fill="none" stroke="#8bd8f6" stroke-opacity=".65"/>
 <g id="simParticles"></g><g id="simPrecipitate"></g><g id="simSwirl"><path d="M110 360 C150 320 270 320 310 360" fill="none" stroke="#9ce7ff" stroke-opacity=".25" stroke-width="5"/><path d="M115 420 C165 455 255 455 305 420" fill="none" stroke="#9ce7ff" stroke-opacity=".2" stroke-width="4"/></g></g>
-<g id="simImpeller"><line x1="210" y1="285" x2="210" y2="445" stroke="#c9d6dd" stroke-width="7"/><g transform="translate(210 440)"><ellipse rx="62" ry="18" fill="none" stroke="#d5e1e6" stroke-width="7"/><path d="M-58 0 Q-25 -28 0 0 Q25 28 58 0" fill="none" stroke="#d5e1e6" stroke-width="7"/><path d="M0 -10 L-30 -44 L-7 -53 L15 -16Z" fill="#d5e1e6"/><path d="M0 10 L30 44 L7 53 L-15 16Z" fill="#d5e1e6"/></g></g>
+<g id="simImpeller"><line x1="210" y1="285" x2="210" y2="438" stroke="#c9d6dd" stroke-width="5"/><g transform="translate(210 438)"><circle r="9" fill="#d5e1e6"/><path d="M-5 -5 C-48 -42 -70 -28 -54 8 C-42 34 -20 30 -5 5Z" fill="#d5e1e6"/><path d="M5 -5 C48 -42 70 -28 54 8 C42 34 20 30 5 5Z" fill="#d5e1e6"/><path d="M0 6 C-8 48 12 61 28 31 C39 10 25 -2 4 -6Z" fill="#d5e1e6"/></g></g>
 <text x="210" y="570" text-anchor="middle" fill="#8fa1ad" font-size="14">TRANSPARENT MIXING VESSEL</text>
 </svg>
 <div id="simOverlay" class="sim-overlay"><b>READY</b><span>Add water and start the experiment</span></div>

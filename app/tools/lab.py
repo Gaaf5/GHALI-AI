@@ -73,8 +73,12 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     duration=float(experiment.get("duration_s",60))
     volume=float(vessel.get("working_volume_l",experiment.get("solvent_volume_l",1)))
     additions=experiment.get("additions",[]) or []
-    if volume<=0 or duration<0 or rpm<0: raise ValueError("Volume, duration and rpm must be non-negative/positive.")
+    if volume < 0.1 or volume > 1000: raise ValueError("Working volume must be between 0.1 and 1000 L.")
+    if duration < 0 or duration > 86400: raise ValueError("Experiment time must be between 0 and 86400 s.")
+    if rpm < 0 or rpm > 1800: raise ValueError("Agitation must be between 0 and 1800 RPM.")
     if temp < -50 or temp > 180: raise ValueError("Virtual lab temperature range is -50 to 180 C.")
+    if any(float(a.get("time_s",0)) < 0 or float(a.get("time_s",0)) > duration for a in additions):
+        raise ValueError("Every addition time must be within the experiment duration.")
     solvent_mass=0.0; cp_total=0.0; dissolved={}; undissolved={}; dissolution_info={}; solids=0.0
     warnings=[]; events=[]; rate_index=_mix_factor(rpm,volume)
     for a in additions:
