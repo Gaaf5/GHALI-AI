@@ -16,7 +16,8 @@ MATERIALS = {
     "map": {"kind":"fertilizer","mw":115.03,"density":1.80,"solubility_g_100ml":40,"cp":1.20},
     "dap": {"kind":"fertilizer","mw":132.06,"density":1.62,"solubility_g_100ml":59,"cp":1.25},
     "mkp": {"kind":"fertilizer","mw":136.09,"density":2.34,"solubility_g_100ml":22.6,"cp":1.10},
-    "sop": {"kind":"fertilizer","mw":174.26,"density":2.66,"solubility_g_100ml":12,"cp":1.05},
+    # K2SO4: about 11.1 g/100 mL water at 20 °C; ~12 g/100 mL at 25 °C.
+    "sop": {"kind":"fertilizer","mw":174.26,"density":2.66,"solubility_g_100ml":11.1,"cp":1.05},
     "nop": {"kind":"fertilizer","mw":101.10,"density":2.11,"solubility_g_100ml":31.6,"cp":1.10},
     "ammonium_nitrate": {"kind":"fertilizer","mw":80.04,"density":1.72,"solubility_g_100ml":190,"cp":1.70},
     "ammonium_sulfate": {"kind":"fertilizer","mw":132.14,"density":1.77,"solubility_g_100ml":76,"cp":1.20},
@@ -80,7 +81,18 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     if any(float(a.get("time_s",0)) < 0 or float(a.get("time_s",0)) > duration for a in additions):
         raise ValueError("Every addition time must be within the experiment duration.")
     solvent_mass=0.0; cp_total=0.0; dissolved={}; undissolved={}; dissolution_info={}; solids=0.0
+    # Solubility capacity is based on the actual solvent added, not the vessel's nominal working volume.
+    solvent_volume_l=0.0
+    first_solvent_time=None
+    for a in additions:
+        mid=resolve(a.get("material",""))
+        if mid in MATERIALS and MATERIALS[mid]["kind"]=="solvent":
+            mass=max(0.0,float(a.get("mass_g",0)))
+            solvent_volume_l += mass / max(MATERIALS[mid]["density"],1e-9) / 1000.0
+            first_solvent_time=min(float(a.get("time_s",0)), first_solvent_time if first_solvent_time is not None else float(a.get("time_s",0)))
     warnings=[]; events=[]; rate_index=_mix_factor(rpm,volume)
+    if solvent_volume_l <= 0 and any(MATERIALS.get(resolve(a.get("material","")),{}).get("kind")!="solvent" for a in additions):
+        warnings.append("No solvent was added: solid materials cannot dissolve.")
     for a in additions:
         mid=resolve(a.get("material","")); mass=max(0.0,float(a.get("mass_g",0)))
         if mid not in MATERIALS: raise ValueError(f"Unknown lab material: {a.get('material')}")
@@ -91,7 +103,9 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
             continue
         solids += mass
         base=MATERIALS[mid]["solubility_g_100ml"]
-        capacity=float("inf") if base is None else base*volume*10.0*_temp_factor(temp)
+        if first_solvent_time is not None and float(a.get("time_s",0)) < first_solvent_time:
+            warnings.append(f"{mid}: solid is scheduled before the first solvent addition; dissolution timing is not physically established.")
+        capacity=0.0 if base is None or solvent_volume_l<=0 else base*solvent_volume_l*10.0*_temp_factor(temp)
         # Mixing accelerates approach to equilibrium; it does not change equilibrium solubility.
         k=(0.006 + 0.018*rate_index) * math.exp(0.010*(temp-20))
         effective_time=max(0.0,duration-float(a.get("time_s",0)))
@@ -127,6 +141,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     return {
         "status":"SIMULATED","confidence":confidence,"model":"GHALI Virtual Lab v2",
         "conditions":{"temperature_c":temp,"rpm":rpm,"duration_s":duration,"working_volume_l":volume,
+                      "actual_solvent_volume_l":round(solvent_volume_l,6),
                       "mixing_index":round(rate_index,4)},
         "mass_balance":{"input_g":round(total_mass,6),"dissolved_solids_g":round(dissolved_total,6),
                         "undissolved_solids_g":round(sum(undissolved.values()),6)},

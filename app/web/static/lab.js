@@ -123,8 +123,9 @@ function renderResult(d){
   const left=Object.entries(d.undissolved_g||{}).map(([k,v])=>'<div class="resrow"><span>'+labEsc(materialName(k))+'</span><b>'+v.toFixed(3)+' g</b></div>').join('');
   const risks=(d.chemistry?.compatibility_risks||[]).map(x=>'<div class="lab-warning">⚗ '+labEsc(x.message)+'</div>').join('');
   const warns=(d.warnings||[]).map(x=>'<div class="lab-warning">⚠ '+labEsc(x)+'</div>').join('');
+  const solventVol=d.conditions?.actual_solvent_volume_l;
   $('#labResult').innerHTML='<div class="lab-kpis"><div><span>Uniformity</span><b>'+d.mixing_uniformity_pct.toFixed(1)+'%</b></div>'+
-    '<div><span>Undissolved</span><b>'+u.toFixed(2)+' g</b></div><div><span>Density</span><b>'+d.estimated_density_g_ml.toFixed(3)+' g/mL</b></div></div>'+
+    '<div><span>Undissolved</span><b>'+u.toFixed(2)+' g</b></div><div><span>Solvent volume</span><b>'+(Number.isFinite(solventVol)?Number(solventVol).toFixed(3):'—')+' L</b></div><div><span>Density</span><b>'+d.estimated_density_g_ml.toFixed(3)+' g/mL</b></div></div>'+
     '<h4>Dissolved</h4>'+rows+(left?'<h4>Undissolved / precipitate</h4>'+left:'')+
     (risks?'<h4>Compatibility / precipitation screen</h4>'+risks:'')+warns+
     '<div class="lab-model">'+labEsc(d.note)+'</div>';
