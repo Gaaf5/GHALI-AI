@@ -24,26 +24,55 @@
   <div class="composer"><textarea id="chatInput" placeholder="Ask GHALI AI…" rows="1"></textarea><button id="send">Send</button></div>
 </section>
 <section id="lab" class="tab">
-<div class="lab-head"><div><h2>Virtual Mixing Lab</h2><p class="muted">A deterministic digital experiment environment for mixing, dissolution, temperature and time studies.</p></div><span class="engine-badge">DIGITAL TWIN</span></div>
-<div class="lab-grid">
+<div class="lab-head"><div><h2>Virtual Mixing Laboratory</h2><p class="muted">Build an experiment in the exact addition order, then watch the vessel evolve in real time.</p></div><span class="engine-badge">EXPERIMENT MODE</span></div>
+<div class="lab-workspace">
+<div class="lab-controls">
 <div class="card">
-<h3>Vessel & process</h3>
+<div class="section-title"><div><h3>Experiment setup</h3><p class="muted">The order number controls when each material enters the vessel.</p></div><span id="labState" class="lab-state">READY</span></div>
 <div class="lab-fields">
 <label>Working volume (L)<input id="labVolume" type="number" min="0.1" step="0.1" value="10"></label>
 <label>Temperature (°C)<input id="labTemp" type="number" step="0.1" value="20"></label>
 <label>Agitation (RPM)<input id="labRpm" type="number" min="0" step="10" value="300"></label>
-<label>Run time (s)<input id="labTime" type="number" min="0" step="1" value="120"></label>
-<label>Time acceleration<input id="labTimeScale" type="number" min="1" step="1" value="1"></label>
+<label>Experiment time (s)<input id="labTime" type="number" min="0" step="1" value="120"></label>
+<label>Playback speed (×)<input id="labPlayback" type="number" min="0.25" step="0.25" value="10"></label>
 </div>
-<div class="lab-note">Time acceleration changes the simulated elapsed time; it does not claim a real experiment finished faster.</div>
-<h3>Additions</h3><div id="labAdditions"></div>
+<div class="lab-note">Playback speed only controls the animation. The chemistry engine still uses the configured experiment time. Results are a screening simulation and not a substitute for a physical laboratory test.</div>
+<div class="addition-title"><h3>Addition sequence</h3><span id="labAdditionCount">0 materials</span></div>
+<div class="addition-head"><span>#</span><span>Material</span><span>Mass (g)</span><span>Add at (s)</span><span></span></div>
+<div id="labAdditions"></div>
 <div class="lab-actions"><button id="labAddRow" class="small">+ Add material</button><button id="labClear" class="small">Clear</button></div>
-<button id="labRun" class="primary wide">Run virtual experiment</button>
+<div class="lab-actions"><button id="labMixerToggle" class="mixer-toggle">Mixer OFF</button><button id="labRun" class="primary wide">▶ Start experiment</button><button id="labReset" class="small">↺ Reset</button></div>
 </div>
-<div class="card lab-result"><div class="section-title"><h3>Experiment result</h3><span id="labConfidence" class="engine-badge">—</span></div><div id="labResult"><div class="empty">Configure the vessel and additions, then run the experiment.</div></div></div>
+<div class="card lab-timeline-card"><div class="section-title"><h3>Experiment timeline</h3><span id="labClock">00:00.0</span></div><div id="labEvents" class="lab-events"><div class="empty">Start an experiment to see additions and dissolution events here.</div></div></div>
+</div>
+<div class="lab-simulator card">
+<div class="sim-header"><div><h3>Live vessel simulator</h3><span id="simStatus" class="muted">Waiting for experiment</span><span id="simStartedAt" class="sim-start-time">Not started</span></div><div class="sim-readouts"><b id="simTemp">20.0 °C</b><b id="simRpm">0 RPM</b></div></div>
+<div class="vessel-stage">
+<svg id="labVessel" viewBox="0 0 420 620" role="img" aria-label="Transparent cylindrical mixing vessel">
+<defs>
+<linearGradient id="glass" x1="0" x2="1"><stop offset="0" stop-color="#b9d8e8" stop-opacity=".12"/><stop offset=".5" stop-color="#ffffff" stop-opacity=".05"/><stop offset="1" stop-color="#8ac0dc" stop-opacity=".14"/></linearGradient>
+<linearGradient id="liquid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#62b7df" stop-opacity=".26"/><stop offset="1" stop-color="#1b668d" stop-opacity=".48"/></linearGradient>
+<filter id="glow"><feGaussianBlur stdDeviation="5"/></filter>
+<clipPath id="vesselClip"><path d="M92 95 Q210 112 328 95 L328 500 Q210 548 92 500Z"/></clipPath>
+</defs>
+<ellipse cx="210" cy="96" rx="118" ry="22" fill="none" stroke="#bfe7f5" stroke-opacity=".45" stroke-width="4"/>
+<path d="M92 96 L92 500 Q210 548 328 500 L328 96" fill="url(#glass)" stroke="#bfe7f5" stroke-opacity=".55" stroke-width="4"/>
+<g clip-path="url(#vesselClip)"><rect id="simLiquid" x="85" y="300" width="250" height="260" fill="url(#liquid)"/><path id="simSurface" d="M86 300 Q210 287 334 300" fill="none" stroke="#8bd8f6" stroke-opacity=".65"/>
+<g id="simParticles"></g><g id="simPrecipitate"></g><g id="simSwirl"><path d="M110 360 C150 320 270 320 310 360" fill="none" stroke="#9ce7ff" stroke-opacity=".25" stroke-width="5"/><path d="M115 420 C165 455 255 455 305 420" fill="none" stroke="#9ce7ff" stroke-opacity=".2" stroke-width="4"/></g></g>
+<g id="simImpeller"><line x1="210" y1="285" x2="210" y2="445" stroke="#c9d6dd" stroke-width="7"/><g transform="translate(210 440)"><ellipse rx="62" ry="18" fill="none" stroke="#d5e1e6" stroke-width="7"/><path d="M-58 0 Q-25 -28 0 0 Q25 28 58 0" fill="none" stroke="#d5e1e6" stroke-width="7"/><path d="M0 -10 L-30 -44 L-7 -53 L15 -16Z" fill="#d5e1e6"/><path d="M0 10 L30 44 L7 53 L-15 16Z" fill="#d5e1e6"/></g></g>
+<text x="210" y="570" text-anchor="middle" fill="#8fa1ad" font-size="14">TRANSPARENT MIXING VESSEL</text>
+</svg>
+<div id="simOverlay" class="sim-overlay"><b>READY</b><span>Add water and start the experiment</span></div>
+</div>
+<div class="sim-legend"><span><i class="dot solvent"></i>Solvent</span><span><i class="dot solid"></i>Solid particles</span><span><i class="dot dissolved"></i>Dissolved</span><span><i class="dot precip"></i>Precipitate</span></div>
+</div>
+</div>
+<div class="lab-bottom-grid">
+<div class="card lab-result"><div class="section-title"><h3>Measured simulation result</h3><span id="labConfidence" class="engine-badge">—</span></div><div id="labResult"><div class="empty">The result and mass balance will appear after the run.</div></div></div>
+<div class="card lab-solubility"><div class="section-title"><div><h3>Dissolution monitor</h3><p class="muted">Predicted dissolution progress for every added solid.</p></div></div><div id="labDissolution"><div class="empty">No materials yet.</div></div></div>
 </div>
 <div class="card lab-sweep-card">
-<div class="section-title"><div><h3>Scenario engine</h3><p class="muted">Run deterministic parameter sweeps without involving the LLM. Useful for thousands of virtual trials.</p></div><span id="labSweepCount" class="engine-badge">0 runs</span></div>
+<div class="section-title"><div><h3>Scenario engine</h3><p class="muted">Deterministic parameter sweeps for large virtual trial sets.</p></div><span id="labSweepCount" class="engine-badge">0 runs</span></div>
 <div class="sweep-grid"><label>RPM start<input id="swR0" type="number" value="100"></label><label>RPM end<input id="swR1" type="number" value="800"></label><label>RPM step<input id="swRs" type="number" value="100"></label><label>Temp start<input id="swT0" type="number" value="20"></label><label>Temp end<input id="swT1" type="number" value="80"></label><label>Temp step<input id="swTs" type="number" value="10"></label></div>
 <button id="labSweep" class="primary">Run scenario sweep</button><div id="labSweepResult"></div><div class="lab-history"><h4>Experiment history</h4><div id="labHistory"><span class="muted">No experiments loaded.</span></div></div>
 </div>

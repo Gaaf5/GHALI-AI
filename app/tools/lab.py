@@ -75,7 +75,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     additions=experiment.get("additions",[]) or []
     if volume<=0 or duration<0 or rpm<0: raise ValueError("Volume, duration and rpm must be non-negative/positive.")
     if temp < -50 or temp > 180: raise ValueError("Virtual lab temperature range is -50 to 180 C.")
-    solvent_mass=0.0; cp_total=0.0; dissolved={}; undissolved={}; solids=0.0
+    solvent_mass=0.0; cp_total=0.0; dissolved={}; undissolved={}; dissolution_info={}; solids=0.0
     warnings=[]; events=[]; rate_index=_mix_factor(rpm,volume)
     for a in additions:
         mid=resolve(a.get("material","")); mass=max(0.0,float(a.get("mass_g",0)))
@@ -94,12 +94,19 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         fraction=1-math.exp(-k*effective_time)
         equilibrium=min(mass,capacity)
         dissolved_mass=equilibrium*(1-math.exp(-k*effective_time))
-        # If the requested dose is below equilibrium, the same kinetic model approaches full dissolution.
+        # If the dose is below equilibrium, the same kinetic model approaches complete dissolution.
         if mass <= capacity: dissolved_mass=mass*fraction
+        remaining=max(0.0,mass-dissolved_mass)
         dissolved[mid]=dissolved.get(mid,0)+dissolved_mass
-        undissolved[mid]=undissolved.get(mid,0)+max(0.0,mass-dissolved_mass)
+        undissolved[mid]=undissolved.get(mid,0)+remaining
+        time_to_95=None if equilibrium < mass*0.95 else (-math.log(0.05)/max(k,1e-12))+float(a.get("time_s",0))
+        dissolution_info[mid]={"mass_g":mass,"capacity_g":capacity if math.isfinite(capacity) else None,
+                              "final_dissolved_g":dissolved_mass,"final_pct":100*dissolved_mass/max(mass,1e-12),
+                              "complete":mass<=capacity and dissolved_mass>=mass*0.95,
+                              "time_to_95_s":time_to_95,"start_s":float(a.get("time_s",0)),
+                              "undissolved_g":remaining,"precipitated":False,"precipitated_g":0.0}
         if base is not None and mass>capacity:
-            warnings.append(f"{mid}: equilibrium solubility capacity is approximately {capacity:.1f} g at {temp:.1f} C.")
+            warnings.append(f"{mid}: equilibrium solubility capacity is approximately {capacity:.1f} g at {temp:.1f} C; solid residue can remain.")
         events.append({"time_s":float(a.get("time_s",0)),"event":"add_solid","material":mid,"mass_g":mass})
     total_mass=solvent_mass+solids
     dissolved_total=sum(dissolved.values())
@@ -121,6 +128,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                         "undissolved_solids_g":round(sum(undissolved.values()),6)},
         "dissolved_g":{k:round(v,6) for k,v in dissolved.items()},
         "undissolved_g":{k:round(v,6) for k,v in undissolved.items() if v>1e-8},
+        "dissolution":dissolution_info,
         "estimated_density_g_ml":round(density,6),
         "mixing_uniformity_pct":round(uniformity,3),
         "chemistry":chemistry,
