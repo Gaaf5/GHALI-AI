@@ -248,3 +248,34 @@ def million_case_benchmark() -> dict[str,Any]:
         checksum += 1-math.exp(-(0.006+0.018*mix)*math.exp(.010*(temp-20))*t)
     return {"runs":n,"checksum":round(checksum,6),"engine":"vector-free deterministic benchmark"}
 __all__=["MATERIALS","catalog","resolve","simulate","sweep","million_case_benchmark"]
+# Source-backed solubility registry (authoritative override)
+# Basis: g solute / 100 g H2O. No temperature extrapolation.
+SOLUBILITY_CURVES.update({
+    "urea":{"points":[(0,66.7),(20,108.0),(40,167.0),(60,251.0),(80,400.0),(100,733.0)],"source":"IUPAC Solubility Data Series; reproduced in US20220348828A1"},
+    "map":{"points":[(20,40.0),(25,40.4),(100,170.0)],"source":"Ammonium-phosphate process literature; US EPA PPRTV/NCBI Bookshelf at 25 C"},
+    "dap":{"points":[(10,57.5),(25,69.5)],"source":"PubChem/HSDB and US EPA PPRTV/NCBI Bookshelf"},
+    "mkp":{"points":[(0,14.8),(10,18.3),(20,22.6),(30,28.0),(40,33.5)],"source":"Haifa MKP technical data"},
+    "sop":{"points":[(0,7.4),(20,11.1),(40,14.8),(60,18.2),(80,21.4),(100,24.1)],"source":"CCEA solubility assessment data"},
+    "nop":{"points":[(0,13.3),(20,31.6),(40,63.9),(60,110.0),(80,169.0),(100,246.0)],"source":"Fertilizers Europe potassium nitrate data"},
+    "ammonium_nitrate":{"points":[(0,118.0),(20,187.0),(40,297.0),(60,410.0),(80,576.0),(100,843.0)],"source":"Properties of Ammonium Nitrate based fertilisers; Kirk-Othmer data"},
+    "ammonium_sulfate":{"points":[(0,70.6),(25,76.7),(100,103.8)],"source":"PubChem/HSDB; CRC/Merck data"},
+    "potassium_chloride":{"points":[(0,27.6),(10,31.0),(20,34.0),(30,37.0),(40,40.0),(50,42.6),(60,45.5),(70,48.5),(80,51.0)],"source":"Standard inorganic solubility table; IUPAC-NIST cross-check"},
+    "magnesium_sulfate":{"points":[(10,23.6),(20,26.2),(30,29.0),(40,31.3)],"source":"Common inorganic solubility data; MgSO4·7H2O"},
+    "calcium_chloride":{"points":[(20,74.5)],"source":"PubChem/HSDB; ILO-WHO ICSC"},
+    "calcium_nitrate":{"points":[(20,121.2)],"source":"ILO-WHO ICSC / PubChem; hydrate form must be verified"},
+    "citric_acid":{"points":[(10,54.0),(20,59.2),(30,64.3),(40,68.6),(50,70.9),(60,73.5),(70,76.2),(80,78.8),(90,81.4),(100,84.0)],"source":"Merck Index / HSDB"},
+    "urea_phosphate":{"points":[(20,100.0)],"source":"Manufacturer technical data; single-point value"},
+})
+MATERIALS["magnesium_sulfate"].update({"mw":246.47,"hydrate":"heptahydrate"})
+def _solubility_g_per_100g_water(material: str, temp_c: float):
+    curve=SOLUBILITY_CURVES.get(material)
+    if not curve:
+        return None,"No source-backed aqueous solubility curve available."
+    pts=curve["points"]
+    if temp_c < pts[0][0] or temp_c > pts[-1][0]:
+        return None,curve["source"]+" (temperature outside reference range)"
+    for (t0,v0),(t1,v1) in zip(pts,pts[1:]):
+        if t0 <= temp_c <= t1:
+            f=0.0 if t1==t0 else (temp_c-t0)/(t1-t0)
+            return float(v0+(v1-v0)*f),curve["source"]
+    return float(pts[-1][1]),curve["source"]
