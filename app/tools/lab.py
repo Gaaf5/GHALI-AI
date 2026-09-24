@@ -248,7 +248,7 @@ def million_case_benchmark() -> dict[str,Any]:
         checksum += 1-math.exp(-(0.006+0.018*mix)*math.exp(.010*(temp-20))*t)
     return {"runs":n,"checksum":round(checksum,6),"engine":"vector-free deterministic benchmark"}
 __all__=["MATERIALS","catalog","resolve","simulate","sweep","million_case_benchmark"]
-# Source-backed solubility registry (authoritative override)
+# END OF LAB MODULE
 # Basis: g solute / 100 g H2O. No temperature extrapolation.
 SOLUBILITY_CURVES.update({
     "urea":{"points":[(0,66.7),(20,108.0),(40,167.0),(60,251.0),(80,400.0),(100,733.0)],"source":"IUPAC Solubility Data Series; reproduced in US20220348828A1"},
@@ -279,3 +279,43 @@ def _solubility_g_per_100g_water(material: str, temp_c: float):
             f=0.0 if t1==t0 else (temp_c-t0)/(t1-t0)
             return float(v0+(v1-v0)*f),curve["source"]
     return float(pts[-1][1]),curve["source"]
+
+# Final source-backed solubility registry. This override intentionally refuses temperature extrapolation.
+SOURCE_SOLUBILITY_CURVES = {
+    "urea": {"points":[(10,84.0),(20,105.0),(30,133.0)], "source":"NSW DPIRD fertigation table; 20 C value 105 g/100 g water"},
+    "map": {"points":[(20,37.4),(25,40.0)], "source":"PubChem/HSDB and manufacturer technical data; MAP water solubility"},
+    "dap": {"points":[(10,57.5),(25,69.5)], "source":"PubChem/HSDB; DAP water solubility"},
+    "mkp": {"points":[(20,22.6),(25,25.0),(90,83.5)], "source":"PubChem/CRC reference values"},
+    "sop": {"points":[(10,9.0),(20,11.1),(30,13.0)], "source":"NSW DPIRD fertigation table / fertilizer solubility data"},
+    "nop": {"points":[(10,21.0),(20,31.0),(30,46.0),(40,64.0),(60,110.0),(80,169.0),(100,246.0)], "source":"NSW DPIRD / standard potassium nitrate solubility data"},
+    "ammonium_nitrate": {"points":[(10,158.0),(20,195.0),(30,242.0)], "source":"NSW DPIRD / standard ammonium nitrate solubility data"},
+    "ammonium_sulfate": {"points":[(0,70.6),(10,73.0),(20,75.4),(30,78.1),(40,81.2),(50,84.3),(60,87.4),(80,94.1),(100,103.0)], "source":"PubChem/HSDB solubility table"},
+    "potassium_chloride": {"points":[(0,27.8),(10,31.2),(20,34.0),(30,37.2),(40,40.1),(50,42.6),(60,45.8),(80,51.3),(100,56.3)], "source":"Standard KCl solubility table / ChemicalAid reference"},
+    "magnesium_sulfate": {"points":[(0,20.0),(20,71.0),(40,91.0),(100,73.8)], "source":"PubChem/HSDB; hydrate form matters"},
+    "calcium_chloride": {"points":[(20,74.5),(25,81.3)], "source":"PubChem/HSDB; calcium chloride water solubility"},
+    "calcium_nitrate": {"points":[(20,121.2)], "source":"ILO-WHO ICSC / PubChem; hydrate form must be verified"},
+    "magnesium_nitrate": {"points":[(25,71.2)], "source":"PubChem/HSDB; hydrate form must be verified"},
+    "citric_acid": {"points":[(10,54.0),(20,59.2),(30,64.3),(40,68.6),(50,70.9),(60,73.5),(70,76.2),(80,78.8),(90,81.4),(100,84.0)], "source":"PubChem/HSDB; citric acid solubility"},
+}
+
+def _solubility_g_per_100g_water(material: str, temp_c: float):
+    curve=SOURCE_SOLUBILITY_CURVES.get(material)
+    if not curve:
+        return None, "No source-backed aqueous solubility curve available for this material."
+    pts=curve["points"]
+    if temp_c < pts[0][0] or temp_c > pts[-1][0]:
+        return None, curve["source"] + "; requested temperature is outside the sourced range."
+    if len(pts)==1:
+        return float(pts[0][1]), curve["source"]
+    for (t0,v0),(t1,v1) in zip(pts,pts[1:]):
+        if t0 <= temp_c <= t1:
+            f=(temp_c-t0)/(t1-t0) if t1 != t0 else 0.0
+            return float(v0+(v1-v0)*f), curve["source"]
+    return None, curve["source"]
+
+# Keep source-backed values visible in the material catalog.
+for _mid,_curve in SOURCE_SOLUBILITY_CURVES.items():
+    if _mid in MATERIALS:
+        MATERIALS[_mid]["solubility_data_quality"]="source-backed"
+        MATERIALS[_mid]["solubility_basis"]="g solute / 100 g water"
+MATERIALS["magnesium_sulfate"]["hydrate"]="heptahydrate"
