@@ -62,7 +62,12 @@ class Brain:
         try:
             reply = self.llm.chat(messages)
         except Exception as exc:
-            reply = f"LLM request failed: {exc}"
+            # Deterministic tools remain usable when the LLM provider is unavailable,
+            # including billing/quota exhaustion. Never hide a verified tool result.
+            if tool_result is not None:
+                reply = "LLM unavailable; returning the deterministic calculation result:\n\n" + tool_result
+            else:
+                reply = f"LLM request failed: {exc}"
         self.conversation.add_assistant(reply)
         if retrieved.sources:
             reply += "\n\nSources: " + ", ".join(retrieved.sources)
