@@ -111,9 +111,13 @@ function renderDissolution(result){
   $('#labDissolution').innerHTML=rows.map(([id,x])=>{
     const pct=Math.max(0,Math.min(100,x.final_pct||0));
     const status=x.complete?'DISSOLVED':(x.precipitated?'PRECIPITATE / SOLID REMAINS':'SOLID REMAINS');
+    const sol=x.solubility_g_per_100g_water;
+    const src=x.solubility_source||'No source-backed curve';
     return '<div class="diss-row"><div class="diss-top"><b>'+labEsc(materialName(id))+'</b><span>'+status+'</span></div>'+
       '<div class="diss-bar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'+
-      '<div class="diss-meta"><span>'+pct.toFixed(1)+'% dissolved</span><span>'+(x.time_to_95_s==null?'95% not reachable':Number(x.time_to_95_s).toFixed(1)+' s to 95%')+'</span></div></div>';
+      '<div class="diss-meta"><span>'+pct.toFixed(1)+'% dissolved</span><span>'+(x.time_to_95_s==null?'95% not reachable':Number(x.time_to_95_s).toFixed(1)+' s to 95%')+'</span></div>'+
+      '<div class="diss-meta"><span>Solubility: '+(sol==null?'—':Number(sol).toFixed(2)+' g / 100 g water')+'</span><span>Capacity: '+Number(x.capacity_g||0).toFixed(1)+' g</span></div>'+
+      '<div class="diss-source">'+labEsc(src)+'</div></div>';
   }).join('');
 }
 function renderResult(d){

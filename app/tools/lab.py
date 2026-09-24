@@ -53,16 +53,62 @@ def resolve(name: str) -> str:
 def catalog():
     out=[]
     for key,v in MATERIALS.items():
+        sol20,sol_source=_solubility_g_per_100g_water(key,20) if "SOLUBILITY_CURVES" in globals() else (None,"")
         out.append({"id":key,"name":ARABIC_NAMES.get(key,key.replace("_"," ").title()),
                     "kind":v["kind"],"mw":v["mw"],"density":v["density"],
-                    "solubility_g_100ml":v["solubility_g_100ml"],"cp":v["cp"]})
+                    "solubility_g_100ml":v["solubility_g_100ml"],"solubility_g_per_100g_water_20c":sol20,
+                    "solubility_source":sol_source,"cp":v["cp"]})
     return out
 
-def _temp_factor(temp_c: float) -> float:
-    # Smooth engineering approximation: modest solubility increase with temperature.
-    return max(0.55, min(2.6, 1.0 + 0.0045*(temp_c-20.0)))
+SOLUBILITY_CURVES = {
+    # Reference basis: grams solute / 100 grams WATER.
+    # Values are literature/reference points; linear interpolation is used between points.
+    "urea": {"points":[(0,66.7),(20,108.0),(40,167.0),(60,251.0),(80,400.0),(100,733.0)],
+             "source":"IUPAC/industrial reference table reproduced in US12018199B2"},
+    "map": {"points":[(0,21.95),(20,36.99),(100,170.27)],
+            "source":"UNIDO/IFDC Fertilizer Manual, Table 16.3; values converted from saturated-solution wt% to g/100 g water"},
+    "dap": {"points":[(0,42.86),(20,69.49),(100,138.10)],
+            "source":"UNIDO/IFDC Fertilizer Manual, Table 16.3; values converted from saturated-solution wt% to g/100 g water"},
+    "mkp": {"points":[(20,22.6),(25,25.0),(90,83.5)],
+            "source":"PubChem/CRC reference values"},
+    "sop": {"points":[(0,7.4),(10,9.3),(20,11.1),(30,13.0),(40,14.8),(60,18.2),(80,21.4),(90,22.9),(100,24.1)],
+            "source":"reference K2SO4 solubility table"},
+    "nop": {"points":[(0,13.3),(10,20.9),(20,31.6),(30,45.8),(40,63.9),(50,85.5),(60,110.0),(70,138.0),(80,169.0),(90,202.0),(100,246.0)],
+            "source":"reference KNO3 solubility table / PubChem"},
+    "potassium_chloride": {"points":[(0,28.0),(20,34.2),(40,40.1),(60,45.8),(80,51.3),(100,56.3)],
+                           "source":"American Chemical Society KCl solubility table"},
+    "ammonium_sulfate": {"points":[(0,70.6),(10,73.0),(20,75.4),(30,78.1),(40,81.2),(50,84.3),(60,87.4),(80,94.1),(100,103.0)],
+                         "source":"IUPAC Solubility Data Series / PubChem"},
+    "magnesium_sulfate": {"points":[(0,25.5),(10,30.4),(20,35.1),(30,39.7),(40,44.7),(50,50.4),(60,54.8),(70,59.2),(80,54.8),(90,52.9),(100,50.2)],
+                          "source":"reference MgSO4 solubility table"},
+    "calcium_chloride": {"points":[(0,59.5),(10,64.7),(15,74.5),(20,100.0),(30,128.0),(50,137.0),(70,147.0),(90,159.0)],
+                         "source":"ScienceDirect chemistry reference table"},
+    "calcium_nitrate": {"points":[(25,121.2)], "source":"ILO-WHO/HSDB single reference point"},
+    "magnesium_nitrate": {"points":[(0,62.1),(10,66.0),(20,69.5),(30,73.6),(40,78.9),(60,78.9),(80,91.6),(90,106.0)],
+                          "source":"reference Mg(NO3)2 solubility table"},
+    "citric_acid": {"points":[(20,59.0)], "source":"reference single-point value"},
+    "urea_phosphate": {"points":[(20,50.0)], "source":"engineering/reference single-point value"},
+}
 
-def _mix_factor(rpm: float, volume_l: float, viscosity=1.0) -> float:
+def _solubility_g_per_100g_water(material: str, temp_c: float) -> tuple[float|None,str]:
+    curve=SOLUBILITY_CURVES.get(material)
+    if not curve:
+        return None,"no source-backed curve available"
+    pts=curve["points"]
+    if temp_c <= pts[0][0]:
+        value=pts[0][1]
+    elif temp_c >= pts[-1][0]:
+        value=pts[-1][1]
+    else:
+        value=pts[0][1]
+        for (t0,v0),(t1,v1) in zip(pts,pts[1:]):
+            if t0 <= temp_c <= t1:
+                f=(temp_c-t0)/(t1-t0)
+                value=v0+(v1-v0)*f
+                break
+    return float(value),curve["source"]
+
+def _mix_factor(rpm: float, volume_l: float, viscosity=1.0):
     rpm=max(0.0,float(rpm)); volume=max(0.1,float(volume_l))
     power=(rpm/300.0)**1.35 / (volume**0.12 * max(viscosity,0.2))
     return max(0.0,min(3.5,power))
@@ -81,51 +127,68 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     if any(float(a.get("time_s",0)) < 0 or float(a.get("time_s",0)) > duration for a in additions):
         raise ValueError("Every addition time must be within the experiment duration.")
     solvent_mass=0.0; cp_total=0.0; dissolved={}; undissolved={}; dissolution_info={}; solids=0.0
-    # Solubility capacity is based on the actual solvent added, not the vessel's nominal working volume.
-    solvent_volume_l=0.0
-    first_solvent_time=None
-    for a in additions:
-        mid=resolve(a.get("material",""))
-        if mid in MATERIALS and MATERIALS[mid]["kind"]=="solvent":
-            mass=max(0.0,float(a.get("mass_g",0)))
-            solvent_volume_l += mass / max(MATERIALS[mid]["density"],1e-9) / 1000.0
-            first_solvent_time=min(float(a.get("time_s",0)), first_solvent_time if first_solvent_time is not None else float(a.get("time_s",0)))
-    warnings=[]; events=[]; rate_index=_mix_factor(rpm,volume)
-    if solvent_volume_l <= 0 and any(MATERIALS.get(resolve(a.get("material","")),{}).get("kind")!="solvent" for a in additions):
-        warnings.append("No solvent was added: solid materials cannot dissolve.")
+    solvent_volume_l=0.0; water_mass_total=0.0; first_solvent_time=None
     for a in additions:
         mid=resolve(a.get("material","")); mass=max(0.0,float(a.get("mass_g",0)))
+        if mid in MATERIALS and MATERIALS[mid]["kind"]=="solvent":
+            solvent_volume_l += mass / max(MATERIALS[mid]["density"],1e-9) / 1000.0
+            if mid=="water": water_mass_total += mass
+            at=float(a.get("time_s",0))
+            first_solvent_time=at if first_solvent_time is None else min(first_solvent_time,at)
+    warnings=[]; events=[]; rate_index=_mix_factor(rpm,volume)
+    if water_mass_total <= 0 and any(MATERIALS.get(resolve(a.get("material","")),{}).get("kind")!="solvent" for a in additions):
+        warnings.append("No water was added: source-backed fertilizer solubility curves cannot be applied.")
+    if any(MATERIALS.get(resolve(a.get("material","")),{}).get("kind")=="solvent" and resolve(a.get("material",""))!="water" for a in additions):
+        warnings.append("Solubility data are currently referenced to water; non-water solvent effects are not modeled.")
+    for a in additions:
+        mid=resolve(a.get("material","")); mass=max(0.0,float(a.get("mass_g",0))); at=float(a.get("time_s",0))
         if mid not in MATERIALS: raise ValueError(f"Unknown lab material: {a.get('material')}")
-        solvent = MATERIALS[mid]["kind"]=="solvent"
-        if solvent:
-            m=mass; solvent_mass += m; cp_total += m*MATERIALS[mid]["cp"]
-            events.append({"time_s":float(a.get("time_s",0)),"event":"add_solvent","material":mid,"mass_g":m})
+        if MATERIALS[mid]["kind"]=="solvent":
+            solvent_mass += mass; cp_total += mass*MATERIALS[mid]["cp"]
+            events.append({"time_s":at,"event":"add_solvent","material":mid,"mass_g":mass})
             continue
         solids += mass
-        base=MATERIALS[mid]["solubility_g_100ml"]
-        if first_solvent_time is not None and float(a.get("time_s",0)) < first_solvent_time:
+        if first_solvent_time is not None and at < first_solvent_time:
             warnings.append(f"{mid}: solid is scheduled before the first solvent addition; dissolution timing is not physically established.")
-        capacity=0.0 if base is None or solvent_volume_l<=0 else base*solvent_volume_l*10.0*_temp_factor(temp)
-        # Mixing accelerates approach to equilibrium; it does not change equilibrium solubility.
-        k=(0.006 + 0.018*rate_index) * math.exp(0.010*(temp-20))
-        effective_time=max(0.0,duration-float(a.get("time_s",0)))
-        fraction=1-math.exp(-k*effective_time)
-        equilibrium=min(mass,capacity)
-        dissolved_mass=equilibrium*(1-math.exp(-k*effective_time))
-        # If the dose is below equilibrium, the same kinetic model approaches complete dissolution.
-        if mass <= capacity: dissolved_mass=mass*fraction
+        sol_ref, sol_source=_solubility_g_per_100g_water(mid,temp)
+        if sol_ref is None:
+            warnings.append(f"{mid}: no source-backed water-solubility curve is available; dissolution capacity is not claimed.")
+            capacity=0.0; dissolved_mass=0.0; time_to_95=None
+        else:
+            # Solubility is a thermodynamic equilibrium property. Water mass, not vessel volume,
+            # sets the saturation capacity. A short time-step model lets later water additions
+            # increase capacity rather than pretending all water was present from t=0.
+            k=(0.006 + 0.018*rate_index) * math.exp(0.004*(temp-20))
+            steps=max(20,min(240,int(duration-at)+1))
+            dt=max(0.25,(duration-at)/steps) if duration>at else 0.0
+            dmass=0.0; time_to_95=None; t=at
+            for _ in range(steps):
+                t=min(duration,t+dt)
+                water_now=sum(max(0.0,float(x.get("mass_g",0))) for x in additions
+                              if resolve(x.get("material",""))=="water" and float(x.get("time_s",0))<=t)
+                capacity_now=sol_ref*water_now/100.0
+                equilibrium_now=min(mass,capacity_now)
+                dmass += max(0.0,equilibrium_now-dmass)*(1-math.exp(-k*dt))
+                if time_to_95 is None and dmass >= mass*0.95 and mass <= capacity_now:
+                    time_to_95=t
+            capacity=sol_ref*water_mass_total/100.0
+            dissolved_mass=min(mass,max(0.0,dmass))
+            if time_to_95 is None and mass <= capacity:
+                time_to_95=duration
         remaining=max(0.0,mass-dissolved_mass)
         dissolved[mid]=dissolved.get(mid,0)+dissolved_mass
         undissolved[mid]=undissolved.get(mid,0)+remaining
-        time_to_95=None if equilibrium < mass*0.95 else (-math.log(0.05)/max(k,1e-12))+float(a.get("time_s",0))
-        dissolution_info[mid]={"mass_g":mass,"capacity_g":capacity if math.isfinite(capacity) else None,
+        dissolution_info[mid]={"mass_g":mass,"capacity_g":round(capacity,6),
+                              "solubility_g_per_100g_water":sol_ref,
+                              "solubility_source":sol_source,
+                              "water_mass_total_g":round(water_mass_total,6),
                               "final_dissolved_g":dissolved_mass,"final_pct":100*dissolved_mass/max(mass,1e-12),
                               "complete":mass<=capacity and dissolved_mass>=mass*0.95,
-                              "time_to_95_s":time_to_95,"start_s":float(a.get("time_s",0)),
+                              "time_to_95_s":time_to_95,"start_s":at,
                               "undissolved_g":remaining,"precipitated":False,"precipitated_g":0.0}
-        if base is not None and mass>capacity:
-            warnings.append(f"{mid}: equilibrium solubility capacity is approximately {capacity:.1f} g at {temp:.1f} C; solid residue can remain.")
-        events.append({"time_s":float(a.get("time_s",0)),"event":"add_solid","material":mid,"mass_g":mass})
+        if sol_ref is not None and mass>capacity:
+            warnings.append(f"{mid}: source-backed equilibrium capacity is approximately {capacity:.1f} g at {temp:.1f} °C for {water_mass_total:.1f} g water; solid residue can remain.")
+        events.append({"time_s":at,"event":"add_solid","material":mid,"mass_g":mass})
     total_mass=solvent_mass+solids
     dissolved_total=sum(dissolved.values())
     uniformity=max(0.0,min(99.9,100*(1-math.exp(-rate_index*duration/45))))
