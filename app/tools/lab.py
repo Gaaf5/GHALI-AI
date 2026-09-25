@@ -62,20 +62,20 @@ def catalog():
 
 SOLUBILITY_CURVES = {
     # Basis: g solute / 100 g water. Values are reference data; interpolation only within sourced ranges.
-    "urea": {"points":[(0,66.7),(20,108.0),(40,167.0),(60,251.0),(80,400.0),(100,733.0)],"source":"IUPAC Solubility Data Series; reproduced in US20220348828A1","url":"https://patents.google.com/patent/US20220348828A1/en"},
-    "map": {"points":[(0,22.7),(20,32.8),(25,40.4)],"source":"Fertilizers Europe Guidance; EPA/NLM reference","url":"https://www.ncbi.nlm.nih.gov/books/NBK584918/table/ch1.tab1/"},
-    "dap": {"points":[(0,42.9),(10,57.5),(20,58.8),(25,69.5),(100,106.0)],"source":"Fertilizers Europe Guidance; OIV specification; PubChem/CRC","url":"https://www.oiv.int/node/3844/download/pdf"},
-    "mkp": {"points":[(20,22.6),(90,83.5)],"source":"Reference KH2PO4 solubility data","url":"https://en.wikipedia.org/wiki/Monopotassium_phosphate"},
-    "sop": {"points":[(0,7.4),(10,9.3),(20,11.1),(30,13.0),(40,14.8),(60,18.2),(80,21.4),(90,22.9),(100,24.1)],"source":"K2SO4 reference solubility table","url":"https://www.chemicalaid.com/tools/solubility.php?substance=K2SO4"},
+    "urea": {"points":[(0,66.7),(20,108.0),(40,167.0),(60,251.0),(80,400.0),(100,733.0)],"source":"Fertilizer-grade reference: about 108 g/100 g water at 20 °C; practical fertigation data report about 105 kg/100 L at 20 °C","url":"https://www.dpird.nsw.gov.au/agriculture/water/irrigation/crops/fertigation"},
+    "map": {"points":[(0,22.7),(20,37.1),(25,40.4)],"source":"EPA PPRTV / NLM at 25 °C; fertilizer product specification at 20 °C","url":"https://www.epa.gov/sites/default/files/2021-09/documents/diammoniumphosphate.pdf"},
+    "dap": {"points":[(10,57.5),(25,69.5)],"source":"CRC/NLM: 57.5 g/100 mL water at 10 °C and 69.5 g/100 g water at 25 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Ammonium-Phosphate-Dibasic"},
+    "mkp": {"points":[(20,18.0),(25,25.0),(90,83.5)],"source":"Ullmann/HSDB and CRC values for KH2PO4; 18 g/100 g water at 20 °C, 25 g/100 cc at 25 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/potassium%20dihydrogen%20orthophosphate"},
+    "sop": {"points":[(0,7.4),(10,9.3),(20,11.1),(25,12.0),(30,13.0),(40,14.8),(60,18.2),(80,21.4),(90,22.9),(100,24.1)],"source":"PubChem/ICSC: 12 g/100 mL water at 25 °C; independent reference table gives 11.1 at 20 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Potassium-sulfate"},
     "nop": {"points":[(0,13.3),(10,20.9),(20,31.6),(30,45.8),(40,63.9),(50,85.5),(60,110.0),(70,138.0),(80,169.0),(90,202.0),(100,246.0)],"source":"KNO3 reference solubility data / PubChem","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Potassium-nitrate"},
-    "ammonium_nitrate": {"points":[(0,118.3),(20,200.0),(100,871.0)],"source":"CRC/HSDB and ILO-WHO ICSC","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Ammonium-nitrate"},
-    "potassium_chloride": {"points":[(0,27.6),(10,31.0),(20,34.0),(30,37.0),(40,40.0),(50,42.6)],"source":"Standard KCl solubility table","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Potassium-Chloride"},
-    "ammonium_sulfate": {"points":[(0,70.6),(10,73.0),(20,75.4),(30,78.1),(40,81.2),(50,84.3),(60,87.4),(80,94.1),(100,103.0)],"source":"IUPAC Solubility Data Series","url":"https://pubchem.ncbi.nlm.nih.gov/compound/ammonium-sulfate"},
+    "ammonium_nitrate": {"points":[(0,118.3),(20,200.0),(100,871.0)],"source":"CRC/HSDB and ILO-WHO ICSC: 200 g/100 mL water at 20 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Ammonium-nitrate"},
+    "potassium_chloride": {"points":[(0,27.6),(10,31.0),(20,34.0),(30,37.0),(40,40.0),(50,42.6)],"source":"Standard KCl solubility table; 34.0 g/100 mL water at 20 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Potassium-Chloride"},
+    "ammonium_sulfate": {"points":[(0,70.6),(25,76.7),(100,103.8)],"source":"CRC/Merck values reported by PubChem: 70.6 g/100 g water at 0 °C, 76.7 at 25 °C, 103.8 at 100 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/6097028"},
     "magnesium_sulfate": {"points":[(20,71.0),(40,91.0)],"source":"MgSO4·7H2O reference data; hydrate explicitly modeled","url":"https://pubchem.ncbi.nlm.nih.gov/compound/magnesium-sulfate"},
-    "calcium_nitrate": {"points":[(0,105.0),(20,129.0),(100,363.0)],"source":"Calcium nitrate tetrahydrate reference data; 1290 g/L at 20 °C","url":"https://wiki.arcsnet.dev/content/wikipedia_en_all_maxi_2026-02/A/Calcium_nitrate"},
-    "calcium_chloride": {"points":[(0,59.5),(10,64.7),(20,74.5),(30,100.0),(40,128.0),(60,137.0),(80,147.0),(100,159.0)],"source":"Calcium chloride reference solubility table","url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC5551734/"},
-    "magnesium_nitrate": {"points":[(20,125.0)],"source":"Magnesium nitrate hexahydrate fertilizer specification: 1250 g/L at 20 °C","url":"https://svk.ua/en/catalog/industrial/inorganic-chemicals/magnesium-nitrate"},
-    "citric_acid": {"points":[(20,59.0)],"source":"ILO-WHO ICSC 0855","url":"https://www.inchem.org/documents/icsc/icsc/eics0855.htm"},
+    "calcium_nitrate": {"points":[(0,105.0),(20,129.0),(100,363.0)],"source":"Calcium nitrate tetrahydrate reference: 129 g/100 mL water at 20 °C","url":"https://www.sciencemadness.org/smwiki/index.php/Calcium_nitrate"},
+    "calcium_chloride": {"points":[(0,59.5),(20,74.5),(25,81.3),(40,128.0),(60,137.0),(80,147.0),(100,159.0)],"source":"ICSC/CRC: 74.5 g/100 mL water at 20 °C; 81.3 g/100 g water at 25 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Calcium-Chloride"},
+    "magnesium_nitrate": {"points":[(20,125.0)],"source":"Industrial fertilizer/technical reference: magnesium nitrate solubility 125 g/100 mL water","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Magnesium-nitrate"},
+    "citric_acid": {"points":[(10,54.0),(20,59.2),(30,64.3),(40,68.6),(50,70.9),(60,73.5),(70,76.2),(80,78.8),(90,81.4),(100,84.0)],"source":"Merck/HSDB values reported by PubChem","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Citric-Acid"},
     "urea_phosphate": {"points":[(20,100.0)],"source":"EuroChem Aqualis UP Solub: 1000 g/L water at 20 °C","url":"https://www.eurochem-wsf.com/products/up-solub/"},
 }
 
