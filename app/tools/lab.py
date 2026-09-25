@@ -23,10 +23,10 @@ MATERIALS = {
     "ammonium_sulfate": {"kind":"fertilizer","mw":132.14,"density":1.77,"solubility_g_100ml":76,"cp":1.20},
     "urea_phosphate": {"kind":"fertilizer","mw":115.05,"density":1.85,"solubility_g_100ml":50,"cp":1.20},
     "potassium_chloride": {"kind":"fertilizer","mw":74.55,"density":1.98,"solubility_g_100ml":34.2,"cp":1.05},
-    "magnesium_sulfate": {"kind":"salt","mw":120.37,"density":1.68,"solubility_g_100ml":71,"cp":1.15},
-    "calcium_nitrate": {"kind":"fertilizer","mw":164.09,"density":1.90,"solubility_g_100ml":129,"cp":1.30},
+    "magnesium_sulfate": {"kind":"salt","mw":246.47,"density":1.68,"solubility_g_100ml":71,"cp":1.15,"hydrate":"heptahydrate"},
+    "calcium_nitrate": {"kind":"fertilizer","mw":236.15,"density":1.896,"solubility_g_100ml":129,"cp":1.30,"hydrate":"tetrahydrate"},
     "calcium_chloride": {"kind":"salt","mw":110.98,"density":2.15,"solubility_g_100ml":74.5,"cp":1.05},
-    "magnesium_nitrate": {"kind":"salt","mw":148.31,"density":1.46,"solubility_g_100ml":125,"cp":1.15},
+    "magnesium_nitrate": {"kind":"salt","mw":256.41,"density":1.46,"solubility_g_100ml":125,"cp":1.15,"hydrate":"hexahydrate"},
     "citric_acid": {"kind":"acid","mw":192.12,"density":1.54,"solubility_g_100ml":59,"cp":1.20},
     "sulfuric_acid": {"kind":"acid","mw":98.079,"density":1.84,"solubility_g_100ml":None,"cp":1.40},
     "nitric_acid": {"kind":"acid","mw":63.012,"density":1.41,"solubility_g_100ml":None,"cp":1.45},
@@ -53,60 +53,46 @@ def resolve(name: str) -> str:
 def catalog():
     out=[]
     for key,v in MATERIALS.items():
-        sol20,sol_source=_solubility_g_per_100g_water(key,20) if "SOLUBILITY_CURVES" in globals() else (None,"")
+        sol20,sol_source,sol_url=_solubility_g_per_100g_water(key,20) if "SOLUBILITY_CURVES" in globals() else (None,"","")
         out.append({"id":key,"name":ARABIC_NAMES.get(key,key.replace("_"," ").title()),
                     "kind":v["kind"],"mw":v["mw"],"density":v["density"],
                     "solubility_g_100ml":v["solubility_g_100ml"],"solubility_g_per_100g_water_20c":sol20,
-                    "solubility_source":sol_source,"cp":v["cp"]})
+                    "solubility_source":sol_source,"solubility_source_url":sol_url,"cp":v["cp"]})
     return out
 
 SOLUBILITY_CURVES = {
-    # Reference basis: grams solute / 100 grams WATER.
-    # Values are literature/reference points; linear interpolation is used between points.
-    "urea": {"points":[(0,66.7),(20,108.0),(40,167.0),(60,251.0),(80,400.0),(100,733.0)],
-             "source":"IUPAC/industrial reference table reproduced in US12018199B2"},
-    "map": {"points":[(0,21.95),(20,36.99),(100,170.27)],
-            "source":"UNIDO/IFDC Fertilizer Manual, Table 16.3; values converted from saturated-solution wt% to g/100 g water"},
-    "dap": {"points":[(0,42.86),(20,69.49),(100,138.10)],
-            "source":"UNIDO/IFDC Fertilizer Manual, Table 16.3; values converted from saturated-solution wt% to g/100 g water"},
-    "mkp": {"points":[(20,22.6),(25,25.0),(90,83.5)],
-            "source":"PubChem/CRC reference values"},
-    "sop": {"points":[(0,7.4),(10,9.3),(20,11.1),(30,13.0),(40,14.8),(60,18.2),(80,21.4),(90,22.9),(100,24.1)],
-            "source":"reference K2SO4 solubility table"},
-    "nop": {"points":[(0,13.3),(10,20.9),(20,31.6),(30,45.8),(40,63.9),(50,85.5),(60,110.0),(70,138.0),(80,169.0),(90,202.0),(100,246.0)],
-            "source":"reference KNO3 solubility table / PubChem"},
-    "potassium_chloride": {"points":[(0,28.0),(20,34.2),(40,40.1),(60,45.8),(80,51.3),(100,56.3)],
-                           "source":"American Chemical Society KCl solubility table"},
-    "ammonium_sulfate": {"points":[(0,70.6),(10,73.0),(20,75.4),(30,78.1),(40,81.2),(50,84.3),(60,87.4),(80,94.1),(100,103.0)],
-                         "source":"IUPAC Solubility Data Series / PubChem"},
-    "magnesium_sulfate": {"points":[(0,25.5),(10,30.4),(20,35.1),(30,39.7),(40,44.7),(50,50.4),(60,54.8),(70,59.2),(80,54.8),(90,52.9),(100,50.2)],
-                          "source":"reference MgSO4 solubility table"},
-    "calcium_chloride": {"points":[(0,59.5),(10,64.7),(15,74.5),(20,100.0),(30,128.0),(50,137.0),(70,147.0),(90,159.0)],
-                         "source":"ScienceDirect chemistry reference table"},
-    "calcium_nitrate": {"points":[(25,121.2)], "source":"ILO-WHO/HSDB single reference point"},
-    "magnesium_nitrate": {"points":[(0,62.1),(10,66.0),(20,69.5),(30,73.6),(40,78.9),(60,78.9),(80,91.6),(90,106.0)],
-                          "source":"reference Mg(NO3)2 solubility table"},
-    "citric_acid": {"points":[(20,59.0)], "source":"reference single-point value"},
-    "urea_phosphate": {"points":[(20,50.0)], "source":"engineering/reference single-point value"},
+    # Basis: g solute / 100 g water. Values are reference data; interpolation only within sourced ranges.
+    "urea": {"points":[(0,66.7),(20,108.0),(40,167.0),(60,251.0),(80,400.0),(100,733.0)],"source":"IUPAC Solubility Data Series; reproduced in US20220348828A1","url":"https://patents.google.com/patent/US20220348828A1/en"},
+    "map": {"points":[(0,22.7),(20,32.8),(25,40.4)],"source":"Fertilizers Europe Guidance; EPA/NLM reference","url":"https://www.ncbi.nlm.nih.gov/books/NBK584918/table/ch1.tab1/"},
+    "dap": {"points":[(0,42.9),(10,57.5),(20,58.8),(25,69.5),(100,106.0)],"source":"Fertilizers Europe Guidance; OIV specification; PubChem/CRC","url":"https://www.oiv.int/node/3844/download/pdf"},
+    "mkp": {"points":[(20,22.6),(90,83.5)],"source":"Reference KH2PO4 solubility data","url":"https://en.wikipedia.org/wiki/Monopotassium_phosphate"},
+    "sop": {"points":[(0,7.4),(10,9.3),(20,11.1),(30,13.0),(40,14.8),(60,18.2),(80,21.4),(90,22.9),(100,24.1)],"source":"K2SO4 reference solubility table","url":"https://www.chemicalaid.com/tools/solubility.php?substance=K2SO4"},
+    "nop": {"points":[(0,13.3),(10,20.9),(20,31.6),(30,45.8),(40,63.9),(50,85.5),(60,110.0),(70,138.0),(80,169.0),(90,202.0),(100,246.0)],"source":"KNO3 reference solubility data / PubChem","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Potassium-nitrate"},
+    "ammonium_nitrate": {"points":[(0,118.3),(20,200.0),(100,871.0)],"source":"CRC/HSDB and ILO-WHO ICSC","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Ammonium-nitrate"},
+    "potassium_chloride": {"points":[(0,27.6),(10,31.0),(20,34.0),(30,37.0),(40,40.0),(50,42.6)],"source":"Standard KCl solubility table","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Potassium-Chloride"},
+    "ammonium_sulfate": {"points":[(0,70.6),(10,73.0),(20,75.4),(30,78.1),(40,81.2),(50,84.3),(60,87.4),(80,94.1),(100,103.0)],"source":"IUPAC Solubility Data Series","url":"https://pubchem.ncbi.nlm.nih.gov/compound/ammonium-sulfate"},
+    "magnesium_sulfate": {"points":[(20,71.0),(40,91.0)],"source":"MgSO4·7H2O reference data; hydrate explicitly modeled","url":"https://pubchem.ncbi.nlm.nih.gov/compound/magnesium-sulfate"},
+    "calcium_nitrate": {"points":[(0,105.0),(20,129.0),(100,363.0)],"source":"Calcium nitrate tetrahydrate reference data; 1290 g/L at 20 °C","url":"https://wiki.arcsnet.dev/content/wikipedia_en_all_maxi_2026-02/A/Calcium_nitrate"},
+    "calcium_chloride": {"points":[(0,59.5),(10,64.7),(20,74.5),(30,100.0),(40,128.0),(60,137.0),(80,147.0),(100,159.0)],"source":"Calcium chloride reference solubility table","url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC5551734/"},
+    "magnesium_nitrate": {"points":[(20,125.0)],"source":"Magnesium nitrate hexahydrate fertilizer specification: 1250 g/L at 20 °C","url":"https://svk.ua/en/catalog/industrial/inorganic-chemicals/magnesium-nitrate"},
+    "citric_acid": {"points":[(20,59.0)],"source":"ILO-WHO ICSC 0855","url":"https://www.inchem.org/documents/icsc/icsc/eics0855.htm"},
+    "urea_phosphate": {"points":[(20,100.0)],"source":"EuroChem Aqualis UP Solub: 1000 g/L water at 20 °C","url":"https://www.eurochem-wsf.com/products/up-solub/"},
 }
 
-def _solubility_g_per_100g_water(material: str, temp_c: float) -> tuple[float|None,str]:
+def _solubility_g_per_100g_water(material: str, temp_c: float) -> tuple[float|None,str,str]:
     curve=SOLUBILITY_CURVES.get(material)
     if not curve:
-        return None,"no source-backed curve available"
+        return None,"no source-backed curve available",""
     pts=curve["points"]
-    if temp_c <= pts[0][0]:
-        value=pts[0][1]
-    elif temp_c >= pts[-1][0]:
-        value=pts[-1][1]
-    else:
-        value=pts[0][1]
-        for (t0,v0),(t1,v1) in zip(pts,pts[1:]):
-            if t0 <= temp_c <= t1:
-                f=(temp_c-t0)/(t1-t0)
-                value=v0+(v1-v0)*f
-                break
-    return float(value),curve["source"]
+    if temp_c < pts[0][0] or temp_c > pts[-1][0]:
+        return None,f"source data range is {pts[0][0]:g}–{pts[-1][0]:g} °C",curve.get("url","")
+    value=pts[0][1]
+    for (t0,v0),(t1,v1) in zip(pts,pts[1:]):
+        if t0 <= temp_c <= t1:
+            f=0.0 if t1==t0 else (temp_c-t0)/(t1-t0)
+            value=v0+(v1-v0)*f
+            break
+    return float(value),curve["source"],curve.get("url","")
 
 def _mix_factor(rpm: float, volume_l: float, viscosity=1.0):
     rpm=max(0.0,float(rpm)); volume=max(0.1,float(volume_l))
@@ -136,6 +122,9 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
             at=float(a.get("time_s",0))
             first_solvent_time=at if first_solvent_time is None else min(first_solvent_time,at)
     warnings=[]; events=[]; rate_index=_mix_factor(rpm,volume)
+    solid_ids={resolve(a.get("material","")) for a in additions if MATERIALS.get(resolve(a.get("material","")),{}).get("kind")!="solvent"}
+    if len(solid_ids)>1:
+        warnings.append("Multi-solute solubility is not additive: each value is a single-solute reference. Mixed-solution phase equilibria and salting-out/synergistic effects require measured multicomponent data.")
     if water_mass_total <= 0 and any(MATERIALS.get(resolve(a.get("material","")),{}).get("kind")!="solvent" for a in additions):
         warnings.append("No water was added: source-backed fertilizer solubility curves cannot be applied.")
     if any(MATERIALS.get(resolve(a.get("material","")),{}).get("kind")=="solvent" and resolve(a.get("material",""))!="water" for a in additions):
@@ -150,7 +139,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         solids += mass
         if first_solvent_time is not None and at < first_solvent_time:
             warnings.append(f"{mid}: solid is scheduled before the first solvent addition; dissolution timing is not physically established.")
-        sol_ref, sol_source=_solubility_g_per_100g_water(mid,temp)
+        sol_ref, sol_source, sol_url=_solubility_g_per_100g_water(mid,temp)
         if sol_ref is None:
             warnings.append(f"{mid}: no source-backed water-solubility curve is available; dissolution capacity is not claimed.")
             capacity=0.0; dissolved_mass=0.0; time_to_95=None
@@ -181,6 +170,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         dissolution_info[mid]={"mass_g":mass,"capacity_g":round(capacity,6),
                               "solubility_g_per_100g_water":sol_ref,
                               "solubility_source":sol_source,
+                              "solubility_source_url":sol_url,
                               "water_mass_total_g":round(water_mass_total,6),
                               "final_dissolved_g":dissolved_mass,"final_pct":100*dissolved_mass/max(mass,1e-12),
                               "complete":mass<=capacity and dissolved_mass>=mass*0.95,
@@ -248,74 +238,3 @@ def million_case_benchmark() -> dict[str,Any]:
         checksum += 1-math.exp(-(0.006+0.018*mix)*math.exp(.010*(temp-20))*t)
     return {"runs":n,"checksum":round(checksum,6),"engine":"vector-free deterministic benchmark"}
 __all__=["MATERIALS","catalog","resolve","simulate","sweep","million_case_benchmark"]
-# END OF LAB MODULE
-# Basis: g solute / 100 g H2O. No temperature extrapolation.
-SOLUBILITY_CURVES.update({
-    "urea":{"points":[(0,66.7),(20,108.0),(40,167.0),(60,251.0),(80,400.0),(100,733.0)],"source":"IUPAC Solubility Data Series; reproduced in US20220348828A1"},
-    "map":{"points":[(20,40.0),(25,40.4),(100,170.0)],"source":"Ammonium-phosphate process literature; US EPA PPRTV/NCBI Bookshelf at 25 C"},
-    "dap":{"points":[(10,57.5),(25,69.5)],"source":"PubChem/HSDB and US EPA PPRTV/NCBI Bookshelf"},
-    "mkp":{"points":[(0,14.8),(10,18.3),(20,22.6),(30,28.0),(40,33.5)],"source":"Haifa MKP technical data"},
-    "sop":{"points":[(0,7.4),(20,11.1),(40,14.8),(60,18.2),(80,21.4),(100,24.1)],"source":"CCEA solubility assessment data"},
-    "nop":{"points":[(0,13.3),(20,31.6),(40,63.9),(60,110.0),(80,169.0),(100,246.0)],"source":"Fertilizers Europe potassium nitrate data"},
-    "ammonium_nitrate":{"points":[(0,118.0),(20,187.0),(40,297.0),(60,410.0),(80,576.0),(100,843.0)],"source":"Properties of Ammonium Nitrate based fertilisers; Kirk-Othmer data"},
-    "ammonium_sulfate":{"points":[(0,70.6),(25,76.7),(100,103.8)],"source":"PubChem/HSDB; CRC/Merck data"},
-    "potassium_chloride":{"points":[(0,27.6),(10,31.0),(20,34.0),(30,37.0),(40,40.0),(50,42.6),(60,45.5),(70,48.5),(80,51.0)],"source":"Standard inorganic solubility table; IUPAC-NIST cross-check"},
-    "magnesium_sulfate":{"points":[(10,23.6),(20,26.2),(30,29.0),(40,31.3)],"source":"Common inorganic solubility data; MgSO4·7H2O"},
-    "calcium_chloride":{"points":[(20,74.5)],"source":"PubChem/HSDB; ILO-WHO ICSC"},
-    "calcium_nitrate":{"points":[(20,121.2)],"source":"ILO-WHO ICSC / PubChem; hydrate form must be verified"},
-    "citric_acid":{"points":[(10,54.0),(20,59.2),(30,64.3),(40,68.6),(50,70.9),(60,73.5),(70,76.2),(80,78.8),(90,81.4),(100,84.0)],"source":"Merck Index / HSDB"},
-    "urea_phosphate":{"points":[(20,100.0)],"source":"Manufacturer technical data; single-point value"},
-})
-MATERIALS["magnesium_sulfate"].update({"mw":246.47,"hydrate":"heptahydrate"})
-def _solubility_g_per_100g_water(material: str, temp_c: float):
-    curve=SOLUBILITY_CURVES.get(material)
-    if not curve:
-        return None,"No source-backed aqueous solubility curve available."
-    pts=curve["points"]
-    if temp_c < pts[0][0] or temp_c > pts[-1][0]:
-        return None,curve["source"]+" (temperature outside reference range)"
-    for (t0,v0),(t1,v1) in zip(pts,pts[1:]):
-        if t0 <= temp_c <= t1:
-            f=0.0 if t1==t0 else (temp_c-t0)/(t1-t0)
-            return float(v0+(v1-v0)*f),curve["source"]
-    return float(pts[-1][1]),curve["source"]
-
-# Final source-backed solubility registry. This override intentionally refuses temperature extrapolation.
-SOURCE_SOLUBILITY_CURVES = {
-    "urea": {"points":[(10,84.0),(20,105.0),(30,133.0)], "source":"NSW DPIRD fertigation table; 20 C value 105 g/100 g water"},
-    "map": {"points":[(20,37.4),(25,40.0)], "source":"PubChem/HSDB and manufacturer technical data; MAP water solubility"},
-    "dap": {"points":[(10,57.5),(25,69.5)], "source":"PubChem/HSDB; DAP water solubility"},
-    "mkp": {"points":[(20,22.6),(25,25.0),(90,83.5)], "source":"PubChem/CRC reference values"},
-    "sop": {"points":[(10,9.0),(20,11.1),(30,13.0)], "source":"NSW DPIRD fertigation table / fertilizer solubility data"},
-    "nop": {"points":[(10,21.0),(20,31.0),(30,46.0),(40,64.0),(60,110.0),(80,169.0),(100,246.0)], "source":"NSW DPIRD / standard potassium nitrate solubility data"},
-    "ammonium_nitrate": {"points":[(10,158.0),(20,195.0),(30,242.0)], "source":"NSW DPIRD / standard ammonium nitrate solubility data"},
-    "ammonium_sulfate": {"points":[(0,70.6),(10,73.0),(20,75.4),(30,78.1),(40,81.2),(50,84.3),(60,87.4),(80,94.1),(100,103.0)], "source":"PubChem/HSDB solubility table"},
-    "potassium_chloride": {"points":[(0,27.8),(10,31.2),(20,34.0),(30,37.2),(40,40.1),(50,42.6),(60,45.8),(80,51.3),(100,56.3)], "source":"Standard KCl solubility table / ChemicalAid reference"},
-    "magnesium_sulfate": {"points":[(0,20.0),(20,71.0),(40,91.0),(100,73.8)], "source":"PubChem/HSDB; hydrate form matters"},
-    "calcium_chloride": {"points":[(20,74.5),(25,81.3)], "source":"PubChem/HSDB; calcium chloride water solubility"},
-    "calcium_nitrate": {"points":[(20,121.2)], "source":"ILO-WHO ICSC / PubChem; hydrate form must be verified"},
-    "magnesium_nitrate": {"points":[(25,71.2)], "source":"PubChem/HSDB; hydrate form must be verified"},
-    "citric_acid": {"points":[(10,54.0),(20,59.2),(30,64.3),(40,68.6),(50,70.9),(60,73.5),(70,76.2),(80,78.8),(90,81.4),(100,84.0)], "source":"PubChem/HSDB; citric acid solubility"},
-}
-
-def _solubility_g_per_100g_water(material: str, temp_c: float):
-    curve=SOURCE_SOLUBILITY_CURVES.get(material)
-    if not curve:
-        return None, "No source-backed aqueous solubility curve available for this material."
-    pts=curve["points"]
-    if temp_c < pts[0][0] or temp_c > pts[-1][0]:
-        return None, curve["source"] + "; requested temperature is outside the sourced range."
-    if len(pts)==1:
-        return float(pts[0][1]), curve["source"]
-    for (t0,v0),(t1,v1) in zip(pts,pts[1:]):
-        if t0 <= temp_c <= t1:
-            f=(temp_c-t0)/(t1-t0) if t1 != t0 else 0.0
-            return float(v0+(v1-v0)*f), curve["source"]
-    return None, curve["source"]
-
-# Keep source-backed values visible in the material catalog.
-for _mid,_curve in SOURCE_SOLUBILITY_CURVES.items():
-    if _mid in MATERIALS:
-        MATERIALS[_mid]["solubility_data_quality"]="source-backed"
-        MATERIALS[_mid]["solubility_basis"]="g solute / 100 g water"
-MATERIALS["magnesium_sulfate"]["hydrate"]="heptahydrate"

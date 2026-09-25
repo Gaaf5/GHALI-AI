@@ -117,7 +117,7 @@ function renderDissolution(result){
       '<div class="diss-bar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'+
       '<div class="diss-meta"><span>'+pct.toFixed(1)+'% dissolved</span><span>'+(x.time_to_95_s==null?'95% not reachable':Number(x.time_to_95_s).toFixed(1)+' s to 95%')+'</span></div>'+
       '<div class="diss-meta"><span>Solubility: '+(sol==null?'—':Number(sol).toFixed(2)+' g / 100 g water')+'</span><span>Capacity: '+Number(x.capacity_g||0).toFixed(1)+' g</span></div>'+
-      '<div class="diss-source">'+labEsc(src)+'</div></div>';
+      '<div class="diss-source">'+labEsc(src)+(x.solubility_source_url?' · <a href="'+labEsc(x.solubility_source_url)+'" target="_blank" rel="noopener">Source</a>':'')+'</div></div>';
   }).join('');
 }
 function renderResult(d){
