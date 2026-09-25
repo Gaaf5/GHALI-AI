@@ -62,12 +62,22 @@ class Brain:
         try:
             reply = self.llm.chat(messages)
         except Exception as exc:
-            # Deterministic tools remain usable when the LLM provider is unavailable,
-            # including billing/quota exhaustion. Never hide a verified tool result.
+            # Deterministic tools must remain usable when the hosted LLM is unavailable.
+            # In particular, an exhausted API quota must never hide a verified calculation.
             if tool_result is not None:
-                reply = "LLM unavailable; returning the deterministic calculation result:\n\n" + tool_result
+                reply = "The AI chat service is temporarily unavailable, so GHALI used its deterministic calculation engine instead.\n\n" + tool_result
             else:
-                reply = f"LLM request failed: {exc}"
+                message = str(exc)
+                lowered = message.lower()
+                if any(x in lowered for x in ("insufficient_quota", "credit_balance_exhausted", "no credits remaining", "quota")):
+                    reply = (
+                        "The conversational AI is unavailable because the configured API account has no remaining credits.\n\n"
+                        "You can still use GHALI's deterministic tools (formulation, NPK and chemistry calculations) without the chat model. "
+                        "Add API credits or switch the configured LLM provider to restore general conversation."
+                    )
+                else:
+                    reply = "The conversational AI is temporarily unavailable. Deterministic calculation tools remain available."
+
         self.conversation.add_assistant(reply)
         if retrieved.sources:
             reply += "\n\nSources: " + ", ".join(retrieved.sources)
@@ -112,9 +122,24 @@ class Brain:
                 }
                 lowered = normalized.lower()
                 names = [canonical for canonical, aliases in known.items() if any(alias.lower() in lowered for alias in aliases)]
+                # Also recognize a comma/and-separated material list after common English/Arabic cues.
+                if not names:
+                    cue = re.search(r"(?:using|with|using the materials|باستخدام|باستخدام مواد)\s+(.+)$", normalized, re.I)
+                    if cue:
+                        tail = re.sub(r"\band\b|\bو\b", ",", cue.group(1), flags=re.I)
+                        for part in re.split(r"[,;]+", tail):
+                            token = part.strip().lower()
+                            for canonical, aliases in known.items():
+                                if token == canonical.lower() or any(token == alias.lower() for alias in aliases):
+                                    names.append(canonical)
+                                    break
+                names = list(dict.fromkeys(names))
                 if not names:
                     return None
-                result = run_tool("formulation_solver", target="-".join(grade.groups()), batch_kg=batch_kg, material_names=names)
+                try:
+                    result = run_tool("formulation_solver", target="-".join(grade.groups()), batch_kg=batch_kg, material_names=names)
+                except Exception as exc:
+                    return "FORMULATION ERROR: " + str(exc)
                 return "FORMULATION RESULT: " + repr(result)
 
             if tool_name == "mass_to_moles":
