@@ -24,6 +24,13 @@ SPECIES={
  "calcium_chloride":[Species("Ca++",2,"calcium"),Species("Cl-",-1,"chloride",2)],
  "magnesium_sulfate":[Species("Mg++",2,"magnesium"),Species("SO4--",-2,"sulfate")],
  "magnesium_nitrate":[Species("Mg++",2,"magnesium"),Species("NO3-",-1,"nitrate",2)],
+ "zinc_sulfate":[Species("Zn++",2,"zinc"),Species("SO4--",-2,"sulfate")],
+ "ammonium_sulfite":[Species("NH4+",1,"ammonium",2),Species("SO3--",-2,"sulfite")],
+ "tkp_00_33_66":[Species("K+",1,"potassium",3),Species("PO4---",-3,"phosphate")],
+ "mkpi_00_58_38":[Species("K+",1,"potassium"),Species("H2PO3-",-1,"phosphite")],
+ "potassium_hydroxide":[Species("K+",1,"potassium"),Species("OH-",-1,"hydroxide")],
+ "sodium_benzoate":[Species("Na+",1,"sodium"),Species("benzoate",-1,"benzoate")],
+ "boric_acid":[Species("H3BO3",0,"boric_acid")],
 }
 
 SOLUBILITY_PRODUCTS={
@@ -118,11 +125,11 @@ def multicomponent_screen(experiment, dissolved_g, material_data, solution_volum
             common.append({"material":" + ".join(materials),"common_ions":[ion]})
     flags=[]
     if I>0.5:
-        flags.append("Ionic strength exceeds 0.5 mol/L; Davies activity coefficients are not used because the solution is too concentrated for this screening model.")
+        flags.append("Ionic strength exceeds 0.5 mol/L; Davies activity coefficients are disabled because this concentration is outside the reliable range of this screening model.")
     elif I>0.1:
         flags.append("Ionic strength is above 0.1 mol/L; activity-coefficient estimates are increasingly model-dependent.")
     if common:
-        flags.append("Common-ion effects are present; individual pure-water solubility values must not be treated as additive in the mixed solution.")
+        flags.append("Common-ion effects are present; pure-water solubility is not the mixed-solution equilibrium value and may be lower for sparingly soluble phases.")
     ksp=ksp_screen(ions,gammas)
     if any(x["status"]=="PRECIPITATION_LIKELY" for x in ksp):
         flags.append("At least one known Ksp reference is exceeded; precipitation is thermodynamically indicated by this screening pair.")
@@ -140,7 +147,7 @@ def analyze(experiment, dissolved_g, material_data=None, solution_volume_l=None)
     return {"compatibility_risks":risks,
             "precipitation_screen":"RISK_DETECTED" if risks else "NO_RULE_TRIGGERED",
             "multicomponent":multi,
-            "ph_estimate":{"range":[4.0,9.0],"confidence":"screening"},
+            "ph_estimate":{"status":"not_modeled","reason":"Reliable pH requires acid/base speciation, concentration, temperature and product-specific composition data; a fixed pH range is not reported."},
             "ionic_strength":{"value_mol_L":multi["ionic_strength_mol_L"],"status":"screening"},
             "warnings":messages,
             "note":"Mixed-solution equilibrium is screened with ionic strength, activity coefficients and common-ion detection. Absence of a rule trigger is not proof of compatibility."}

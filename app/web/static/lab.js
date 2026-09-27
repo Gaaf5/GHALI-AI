@@ -94,7 +94,7 @@ function spawnParticles(material,mass){
   for(let i=0;i<count;i++){const x=112+Math.random()*196,y=315+Math.random()*155;frag.appendChild(makeParticle(x,y,1.5+Math.random()*3,color));}
   $('#simParticles').appendChild(frag);
 }
-function renderPrecipitate(amount){
+function renderUndissolved(amount){
   $('#simPrecipitate').innerHTML='';
   if(amount<=0.001)return;
   const count=Math.max(8,Math.min(90,Math.round(amount)));
@@ -111,7 +111,7 @@ function renderDissolution(result){
   if(!rows.length){$('#labDissolution').innerHTML='<div class="empty">No solid materials were added.</div>';return;}
   $('#labDissolution').innerHTML=rows.map(([id,x])=>{
     const pct=Math.max(0,Math.min(100,x.final_pct||0));
-    const status=x.complete?'DISSOLVED':(x.precipitated?'PRECIPITATE / SOLID REMAINS':'SOLID REMAINS');
+    const status=x.complete?'DISSOLVED':'UNDISSOLVED SOLID';
     const sol=x.solubility_g_per_100g_water;
     const src=x.solubility_source||'No source-backed curve';
     return '<div class="diss-row"><div class="diss-top"><b>'+labEsc(materialName(id))+'</b><span>'+status+'</span></div>'+
@@ -172,9 +172,9 @@ function animateExperiment(result){
       const opacity=Math.max(.08,1-dissolvedFraction);
       [...$('#simParticles').children].forEach((node,i)=>{if(i%7===0)node.setAttribute('opacity',String(opacity));});
     });
-    renderPrecipitate(liveResidue);
+    renderUndissolved(liveResidue);
     if(t<duration){labAnimation=requestAnimationFrame(frame);}
-    else{setLabState('COMPLETE');$('#simOverlay').innerHTML='<b>COMPLETE</b><span>Simulation finished — inspect dissolution and precipitation results below</span>';$('#labVessel').classList.remove('lab-vibrating');}
+    else{setLabState('COMPLETE');$('#simOverlay').innerHTML='<b>COMPLETE</b><span>Simulation finished — inspect dissolution and undissolved-solid results below</span>';$('#labVessel').classList.remove('lab-vibrating');}
   }
   labAnimation=requestAnimationFrame(frame);
 }
