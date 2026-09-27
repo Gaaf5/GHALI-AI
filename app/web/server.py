@@ -44,7 +44,31 @@ class Handler(BaseHTTPRequestHandler):
         try: n=int(self.headers.get('Content-Length','0'))
         except ValueError: raise ValueError('Invalid Content-Length')
         if n<0 or n>MAX_BODY_BYTES: raise ValueError('Request body too large')
-        return json.loads(self.rfile.read(n) or b'{}')
+        raw=self.rfile.read(n) or b'{}'
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as exc:
+            # Some clients/proxies can concatenate JSON objects into one request body.
+            # Accept that specific case by decoding consecutive object values and merging them.
+            # Other malformed JSON remains a hard 400 error.
+            text=raw.decode('utf-8-sig').lstrip()
+            decoder=json.JSONDecoder()
+            try:
+                first,pos=decoder.raw_decode(text)
+                values=[first]
+                while text[pos:].strip():
+                    tail=text[pos:]
+                    stripped=tail.lstrip()
+                    nxt,used=decoder.raw_decode(stripped)
+                    values.append(nxt)
+                    pos += len(tail) - len(stripped) + used
+                if len(values)>1 and all(isinstance(v,dict) for v in values):
+                    merged={}
+                    for value in values: merged.update(value)
+                    return merged
+            except (UnicodeDecodeError,json.JSONDecodeError):
+                pass
+            raise exc
     def same_origin(self):
         origin=self.headers.get('Origin','').strip()
         if not origin: return True
