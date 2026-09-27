@@ -119,6 +119,87 @@ def _mix_factor(rpm: float, volume_l: float, viscosity=1.0):
     power=(rpm/300.0)**1.35 / (volume**0.12 * max(viscosity,0.2))
     return max(0.0,min(3.5,power))
 
+def _shared_solvent_equilibrium(solid_rows, water_mass_g, temperature_c):
+    """
+    Shared-solvent screening model.
+
+    Pure-water solubility is a ceiling for each material, not an independent
+    capacity that can be spent simultaneously by every solute. Dissolved
+    species from the other solutes occupy the same aqueous phase and reduce
+    the effective capacity available to a given solid.
+
+    This is deliberately an engineering screening model, not a replacement for
+    a full electrolyte activity-coefficient / Pitzer-SIT equilibrium solver.
+    The occupancy proxy is based on dissolved particle moles relative to water
+    moles; it preserves the measured pure-water ceiling for a single-solute
+    experiment and applies a shared-medium penalty only when other solutes are
+    present.
+    """
+    if water_mass_g <= 0:
+        return {}
+
+    water_moles = water_mass_g / MATERIALS["water"]["mw"]
+    states = {}
+    for row in solid_rows:
+        mid=row["material"]
+        states[mid]={
+            "mass_g":row["mass_g"],
+            "pure_capacity_g":row.get("pure_capacity_g"),
+            "dissolved_g":0.0,
+            "qualitative":bool(row.get("qualitative")),
+            "particle_count_factor":max(1.0,float(row.get("particle_count_factor",1.0))),
+        }
+
+    # Fixed-point iteration: each material sees the load contributed by all
+    # other dissolved materials in the same final aqueous phase.
+    for _ in range(80):
+        previous={k:v["dissolved_g"] for k,v in states.items()}
+        for mid,state in states.items():
+            if state["qualitative"]:
+                target=state["mass_g"]
+            elif state["pure_capacity_g"] is None:
+                target=0.0
+            else:
+                other_particles=0.0
+                for other,other_state in states.items():
+                    if other==mid:
+                        continue
+                    other_particles += (other_state["dissolved_g"] / max(MATERIALS[other]["mw"],1e-9)) * other_state["particle_count_factor"]
+                particle_ratio=other_particles/max(water_moles,1e-9)
+                # Shared-medium occupancy penalty. 1.0 means no other solutes;
+                # increasing dissolved particle load progressively consumes
+                # available solvent capacity.
+                occupancy_factor=1.0/(1.0 + particle_ratio)
+                target=min(state["mass_g"],state["pure_capacity_g"]*occupancy_factor)
+            state["dissolved_g"]=max(0.0,target)
+        delta=max(abs(states[k]["dissolved_g"]-previous[k]) for k in states) if states else 0.0
+        if delta<1e-7:
+            break
+
+    total_dissolved=sum(x["dissolved_g"] for x in states.values())
+    out={}
+    for mid,state in states.items():
+        other_particles=0.0
+        for other,other_state in states.items():
+            if other==mid:
+                continue
+            other_particles += (other_state["dissolved_g"] / max(MATERIALS[other]["mw"],1e-9)) * other_state["particle_count_factor"]
+        particle_ratio=other_particles/max(water_moles,1e-9)
+        occupancy_factor=1.0 if state["qualitative"] else 1.0/(1.0+particle_ratio)
+        out[mid]={
+            "pure_capacity_g":state["pure_capacity_g"],
+            "effective_capacity_g":state["mass_g"] if state["qualitative"] else (state["pure_capacity_g"] or 0.0)*occupancy_factor,
+            "dissolved_g":state["dissolved_g"],
+            "other_solute_particle_ratio":particle_ratio,
+            "solvent_occupancy_factor":occupancy_factor,
+            "undissolved_g":max(0.0,state["mass_g"]-state["dissolved_g"]),
+        }
+    return {"materials":out,
+            "water_mass_g":water_mass_g,
+            "total_dissolved_solids_g":total_dissolved,
+            "shared_solvent_model":"iterative dissolved-species occupancy proxy",
+            "warning":"Mixed-solution capacity is an engineering screening estimate. Full thermodynamic prediction requires validated activity coefficients, speciation, solid-phase data and product-specific interaction parameters."}
+
 def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     vessel=experiment.get("vessel",{}) or {}
     temp=float(experiment.get("temperature_c",20))
@@ -147,6 +228,50 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                     water_mass_total += mass
                     first_water_time=at if first_water_time is None else min(first_water_time,at)
     warnings=[]; events=[]; rate_index=_mix_factor(rpm,volume)
+    # Build one shared equilibrium state for the whole aqueous phase. This is
+    # intentionally done before individual dissolution kinetics so each solid
+    # competes for the same solvent instead of receiving an independent water
+    # capacity.
+    solid_totals={}
+    for a in additions:
+        mid=resolve(a.get("material",""))
+        data=MATERIALS[mid]
+        phase=data.get("phase", "liquid" if data.get("kind")=="solvent" else "solid")
+        if phase!="solid":
+            continue
+        mass=max(0.0,float(a.get("mass_g",0)))
+        sol_ref, sol_source, sol_url, sol_quality=_solubility_g_per_100g_water(mid,temp)
+        qualitative=sol_ref is None and bool(data.get("water_soluble"))
+        if sol_ref is None and not qualitative:
+            pure_capacity=None
+        else:
+            pure_capacity=(mass if qualitative else sol_ref*water_mass_total/100.0)
+        # Approximate number of dissolved particles contributed per formula unit.
+        # This is only a shared-solvent occupancy proxy; speciation is handled
+        # separately by lab_chemistry.
+        try:
+            from app.tools.lab_chemistry import SPECIES
+            particle_factor=max(1.0,sum(float(s.stoich) for s in SPECIES.get(mid,[])))
+        except Exception:
+            particle_factor=1.0
+        if mid not in solid_totals:
+            solid_totals[mid]={"mass_g":0.0,"pure_capacity_g":0.0 if pure_capacity is not None else None,
+                               "qualitative":qualitative,"particle_count_factor":particle_factor}
+        solid_totals[mid]["mass_g"] += mass
+        if pure_capacity is not None and solid_totals[mid]["pure_capacity_g"] is not None:
+            # Recompute from the aggregate mass at the same final water charge.
+            if qualitative:
+                solid_totals[mid]["pure_capacity_g"]=solid_totals[mid]["mass_g"]
+            else:
+                solid_totals[mid]["pure_capacity_g"]=sol_ref*water_mass_total/100.0
+        else:
+            solid_totals[mid]["pure_capacity_g"]=None
+    shared_eq=_shared_solvent_equilibrium(
+        [{"material":mid,**row} for mid,row in solid_totals.items()],
+        water_mass_total,temp
+    ) if solid_totals and water_mass_total>0 else {}
+    if shared_eq:
+        warnings.append("Shared-solvent occupancy is active: dissolved materials compete for the same aqueous phase; individual pure-water solubility ceilings are not added independently.")
     solid_ids={resolve(a.get("material","")) for a in additions
                if MATERIALS.get(resolve(a.get("material","")),{}).get("phase", "liquid" if MATERIALS.get(resolve(a.get("material","")),{}).get("kind")=="solvent" else "solid")=="solid"}
     if len(solid_ids)>1:
@@ -181,6 +306,20 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         particle_size=float(a.get("particle_size_um") or data.get("particle_size_um",500.0))
         particle_size=max(10.0,min(10000.0,particle_size))
         sol_ref, sol_source, sol_url, sol_quality=_solubility_g_per_100g_water(mid,temp)
+        shared_state=shared_eq.get("materials",{}).get(mid,{}) if shared_eq else {}
+        total_mid_mass=solid_totals.get(mid,{}).get("mass_g",mass)
+        allocation_ratio=mass/max(total_mid_mass,1e-12)
+        pure_capacity_total=shared_state.get("pure_capacity_g")
+        effective_capacity_total=shared_state.get("effective_capacity_g")
+        if sol_ref is not None and effective_capacity_total is not None:
+            capacity=max(0.0,float(effective_capacity_total)*allocation_ratio)
+            pure_capacity=max(0.0,float(pure_capacity_total or 0.0)*allocation_ratio)
+        elif sol_ref is None and data.get("water_soluble"):
+            capacity=mass
+            pure_capacity=mass
+        else:
+            capacity=0.0
+            pure_capacity=0.0
         if sol_ref is None and data.get("water_soluble"):
             if water_mass_total <= 0:
                 warnings.append(f"{mid}: product is described as water-soluble, but no water was charged; dissolution is not claimed.")
@@ -234,12 +373,12 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                 t=min(duration,t+dt)
                 water_now=sum(max(0.0,float(x.get("mass_g",0))) for x in additions
                               if resolve(x.get("material",""))=="water" and float(x.get("time_s",0))<=t)
-                capacity_now=sol_ref*water_now/100.0
+                capacity_now=capacity*(water_now/max(water_mass_total,1e-12))
                 equilibrium_now=min(mass,capacity_now)
                 dmass += max(0.0,equilibrium_now-dmass)*(1-math.exp(-k*dt))
                 if time_to_95 is None and equilibrium_now>=mass*0.95 and dmass>=mass*0.95:
                     time_to_95=t
-            capacity=sol_ref*water_mass_total/100.0
+            # `capacity` already contains the shared-solution effective ceiling.
             dissolved_mass=min(mass,max(0.0,dmass))
         remaining=max(0.0,mass-dissolved_mass)
         dissolved[mid]=dissolved.get(mid,0)+dissolved_mass
@@ -249,6 +388,10 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                               "kinetic_t95_estimate_s":kinetic_t95,
                               "kinetic_basis":"Noyes-Whitney-inspired engineering screening estimate; not experimentally calibrated for this product/particle grade.",
                               "solubility_g_per_100g_water":sol_ref,
+                              "pure_water_capacity_g":round(pure_capacity,6),
+                              "mixed_solution_effective_capacity_g":round(capacity,6),
+                              "other_solute_particle_ratio":shared_state.get("other_solute_particle_ratio"),
+                              "solvent_occupancy_factor":shared_state.get("solvent_occupancy_factor",1.0),
                               "solubility_basis":"g solute / 100 g H2O",
                               "solubility_source":sol_source,
                               "solubility_source_url":sol_url,
@@ -259,7 +402,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                               "time_to_95_s":time_to_95,"start_s":at,
                               "undissolved_g":remaining,"precipitated":False,"precipitated_g":0.0}
         if sol_ref is not None and mass>capacity:
-            warnings.append(f"{mid}: source-backed equilibrium capacity is approximately {capacity:.1f} g at {temp:.1f} °C for {water_mass_total:.1f} g water; solid residue can remain.")
+            warnings.append(f"{mid}: pure-water capacity is approximately {pure_capacity:.1f} g, but mixed-solution effective capacity is approximately {capacity:.1f} g after accounting for dissolved material already occupying the shared aqueous phase; solid residue can remain.")
         events.append({"time_s":at,"event":"add_solid","material":mid,"mass_g":mass,
                        "particle_size_um":particle_size,"kinetic_t95_estimate_s":kinetic_t95})
     total_mass=liquid_mass+solids
