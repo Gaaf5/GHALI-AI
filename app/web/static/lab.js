@@ -114,9 +114,12 @@ function renderDissolution(result){
     const status=x.complete?'DISSOLVED':'UNDISSOLVED SOLID';
     const sol=x.solubility_g_per_100g_water;
     const src=x.solubility_source||'No source-backed curve';
+    const eqMax=Number(x.equilibrium_max_pct??100);
+    const t95Label=x.time_to_95_s!=null?Number(x.time_to_95_s).toFixed(1)+' s to 95%':(eqMax<95?'95% impossible at equilibrium':'95% not reached in run');
     return '<div class="diss-row"><div class="diss-top"><b>'+labEsc(materialName(id))+'</b><span>'+status+'</span></div>'+
       '<div class="diss-bar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'+
-      '<div class="diss-meta"><span>'+pct.toFixed(1)+'% dissolved</span><span>'+(x.time_to_95_s==null?'95% not reached in run':Number(x.time_to_95_s).toFixed(1)+' s to 95%')+'</span></div>'+
+      '<div class="diss-meta"><span>'+pct.toFixed(1)+'% dissolved</span><span>'+t95Label+'</span></div>'+
+      '<div class="diss-meta"><span>Equilibrium maximum: '+eqMax.toFixed(1)+'%</span><span>Loading: '+(Number(x.loading_ratio??0)*100).toFixed(1)+'% of mixed capacity</span></div>'+
       '<div class="diss-meta"><span>Pure-water capacity: '+(x.pure_water_capacity_g==null?'—':Number(x.pure_water_capacity_g).toFixed(1)+' g')+'</span><span>Mixed capacity: '+Number(x.mixed_solution_effective_capacity_g??x.capacity_g??0).toFixed(1)+' g</span></div>'+
       '<div class="diss-meta"><span>Solvent occupancy: '+(x.solvent_occupancy_factor==null?'—':(Number(x.solvent_occupancy_factor)*100).toFixed(1)+'%')+'</span><span>Other-solute load: '+(x.other_solute_particle_ratio==null?'—':Number(x.other_solute_particle_ratio).toFixed(3)+' mol particles/mol H₂O')+'</span></div>'+
       '<div class="diss-meta"><span>Particle: '+Number(x.particle_size_um||500).toFixed(0)+' µm</span><span>Estimated t95: '+(x.kinetic_t95_estimate_s==null?'—':Number(x.kinetic_t95_estimate_s).toFixed(0)+' s')+'</span></div>'+
@@ -166,9 +169,9 @@ function animateExperiment(result){
     let liveResidue=0;
     Object.entries(dissolved).forEach(([id,x])=>{
       const elapsed=Math.max(0,t-(x.start_s||0));
-      const t95=Math.max(1,Number(x.kinetic_t95_estimate_s||x.time_to_95_s||1));
+      const tau=Math.max(1,Number(x.kinetic_tau_estimate_s||((x.kinetic_t95_estimate_s||x.time_to_95_s||1)/Math.log(20))));
       const equilibriumFraction=Math.max(0,Math.min(1,Number(x.capacity_g||0)/Math.max(Number(x.mass_g||1),1e-9)));
-      const dissolvedFraction=Math.max(0,Math.min(equilibriumFraction,equilibriumFraction*(1-Math.exp(-Math.log(20)*elapsed/t95))));
+      const dissolvedFraction=Math.max(0,Math.min(equilibriumFraction,equilibriumFraction*(1-Math.exp(-elapsed/tau))));
       liveResidue+=Math.max(0,Number(x.mass_g||0)*(1-dissolvedFraction));
       const opacity=Math.max(.08,1-dissolvedFraction);
       [...$('#simParticles').children].forEach((node,i)=>{if(i%7===0)node.setAttribute('opacity',String(opacity));});

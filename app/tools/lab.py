@@ -365,8 +365,16 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                        "urea_phosphate":0.022,"potassium_chloride":0.018,"magnesium_sulfate":0.020,
                        "calcium_nitrate":0.026,"calcium_chloride":0.022,"magnesium_nitrate":0.022,
                        "citric_acid":0.018}.get(mid,0.018)
-            k=base_rate*size_factor*rpm_factor*temp_factor
-            kinetic_t95=math.log(20.0)/max(k,1e-9)
+            # Low-loading charges have a larger concentration driving force (Cs-C).
+            # Scale the engineering mass-transfer rate by the square-root of the
+            # charged/equilibrium loading ratio. This keeps near-saturated charges
+            # close to the base material rate while allowing small dilute charges
+            # to dissolve substantially faster.
+            loading_ratio=min(1.0,mass/max(capacity,1e-9))
+            driving_force_factor=min(6.0,1.0/math.sqrt(max(loading_ratio,1e-9)))
+            k=base_rate*size_factor*rpm_factor*temp_factor*driving_force_factor
+            equilibrium_fraction=min(1.0,capacity/max(mass,1e-9))
+            kinetic_t95=math.log(20.0)/max(k,1e-9) if equilibrium_fraction>=0.95 else None
             steps=max(20,min(600,int(max(1.0,duration-at)*2)+1))
             dt=max(0.25,(duration-at)/steps) if duration>at else 0.0
             dmass=0.0; time_to_95=None; t=at
@@ -380,7 +388,9 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                 # dissolved concentration gets to the mixed-solution equilibrium, the
                 # smaller the instantaneous dissolution rate becomes.
                 dmass += max(0.0,equilibrium_now-dmass)*(1-math.exp(-k*dt))
-                if time_to_95 is None and equilibrium_now>0 and dmass>=equilibrium_now*0.95:
+                # 95% of the charged mass is a valid target only when the
+                # equilibrium state itself can hold at least 95% of the charge.
+                if time_to_95 is None and capacity >= mass*0.95 and dmass>=mass*0.95:
                     time_to_95=t
             dissolved_mass=min(mass,max(0.0,dmass))
             if capacity >= mass:
@@ -393,7 +403,10 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         dissolution_info[mid]={"mass_g":mass,"capacity_g":round(capacity,6),
                               "particle_size_um":particle_size,
                               "kinetic_t95_estimate_s":kinetic_t95,
-                              "kinetic_basis":"Noyes-Whitney-inspired engineering screening estimate; not experimentally calibrated for this product/particle grade.",
+                              "kinetic_tau_estimate_s":None if kinetic_t95 is None else kinetic_t95/math.log(20.0),
+                              "equilibrium_max_pct":round(100.0*(1.0 if (sol_ref is None and data.get("water_soluble")) else min(1.0,capacity/max(mass,1e-9))),6),
+                              "loading_ratio":round(min(1.0,mass/max(capacity,1e-9)),6),
+                              "kinetic_basis":"Noyes-Whitney-inspired engineering screening estimate with concentration-driving-force scaling; not experimentally calibrated for this product/particle grade.",
                               "solubility_g_per_100g_water":sol_ref,
                               "pure_water_capacity_g":round(pure_capacity,6),
                               "mixed_solution_effective_capacity_g":round(capacity,6),
