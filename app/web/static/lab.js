@@ -35,13 +35,14 @@ function renumberRows(){
   rows.forEach((r,i)=>{r.querySelector('.lab-order').textContent=i+1;});
   $('#labAdditionCount').textContent=rows.length+' material'+(rows.length===1?'':'s');
 }
-function addLabRow(material='water',mass=100,time=0){
+function addLabRow(material='water',mass=100,time=0,particle=500){
   if(!labCatalog.length)labCatalog=LAB_FALLBACK_CATALOG;
   const box=$('#labAdditions'), row=document.createElement('div');
   row.className='lab-add-row';
   row.innerHTML='<span class="lab-order">1</span>'+
     '<select class="lab-material">'+labOptions(material)+'</select>'+
     '<input class="lab-mass" type="number" min="0" step="0.01" value="'+mass+'">'+
+    '<input class="lab-particle" type="number" min="10" max="10000" step="10" value="'+particle+'" title="Particle size in micrometres">'+
     '<input class="lab-add-time" type="number" min="0" step="1" value="'+time+'">'+
     '<div class="lab-row-actions"><button class="small lab-up" type="button">↑</button><button class="small lab-down" type="button">↓</button><button class="small lab-remove" type="button">×</button></div>';
   box.appendChild(row);
@@ -63,7 +64,7 @@ function labExperiment(){
   if(playback<0.25||playback>100)throw Error('Playback speed must be between 0.25× and 100×.');
   const additions=[...document.querySelectorAll('.lab-add-row')].map((r,i)=>({
     order:i+1,material:r.querySelector('.lab-material').value,
-    mass_g:+r.querySelector('.lab-mass').value||0,time_s:+r.querySelector('.lab-add-time').value||0
+    mass_g:+r.querySelector('.lab-mass').value||0,particle_size_um:+r.querySelector('.lab-particle').value||500,time_s:+r.querySelector('.lab-add-time').value||0
   }));
   if(!additions.length)throw Error('Add at least one material before starting the experiment.');
   if(additions.some(a=>a.mass_g<=0))throw Error('Every material must have a mass greater than 0 g.');
@@ -117,6 +118,7 @@ function renderDissolution(result){
       '<div class="diss-bar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'+
       '<div class="diss-meta"><span>'+pct.toFixed(1)+'% dissolved</span><span>'+(x.time_to_95_s==null?'95% not reachable':Number(x.time_to_95_s).toFixed(1)+' s to 95%')+'</span></div>'+
       '<div class="diss-meta"><span>Solubility: '+(sol==null?'—':Number(sol).toFixed(2)+' g / 100 g water')+'</span><span>Capacity: '+Number(x.capacity_g||0).toFixed(1)+' g</span></div>'+
+      '<div class="diss-meta"><span>Particle: '+Number(x.particle_size_um||500).toFixed(0)+' µm</span><span>Estimated t95: '+(x.kinetic_t95_estimate_s==null?'—':Number(x.kinetic_t95_estimate_s).toFixed(0)+' s')+'</span></div>'+
       '<div class="diss-source"><span>'+labEsc(x.solubility_quality||'reference')+'</span> · '+labEsc(src)+(x.solubility_source_url?' · <a href="'+labEsc(x.solubility_source_url)+'" target="_blank" rel="noopener">Source</a>':'')+'</div></div>';
   }).join('');
 }
@@ -128,9 +130,10 @@ function renderResult(d){
   const risks=(d.chemistry?.compatibility_risks||[]).map(x=>'<div class="lab-warning">⚗ '+labEsc(x.message)+'</div>').join('');
   const warns=(d.warnings||[]).map(x=>'<div class="lab-warning">⚠ '+labEsc(x)+'</div>').join('');
   const solventVol=d.conditions?.actual_solvent_volume_l;
+  const blends=Object.entries(d.liquid_blending||{}).map(([k,x])=>'<div class="resrow"><span>'+labEsc(materialName(k))+' · '+Number(x.concentration_wt_pct||0).toFixed(0)+' wt%</span><b>t95 ≈ '+Number(x.blend_t95_estimate_s||0).toFixed(0)+' s</b></div>').join('');
   $('#labResult').innerHTML='<div class="lab-kpis"><div><span>Uniformity</span><b>'+d.mixing_uniformity_pct.toFixed(1)+'%</b></div>'+
     '<div><span>Undissolved</span><b>'+u.toFixed(2)+' g</b></div><div><span>Solvent volume</span><b>'+(Number.isFinite(solventVol)?Number(solventVol).toFixed(3):'—')+' L</b></div><div><span>Density</span><b>'+d.estimated_density_g_ml.toFixed(3)+' g/mL</b></div></div>'+
-    '<h4>Dissolved</h4>'+rows+(left?'<h4>Undissolved / precipitate</h4>'+left:'')+
+    '<h4>Dissolved</h4>'+rows+(blends?'<h4>Liquid blending / homogenization</h4>'+blends:'')+(left?'<h4>Undissolved / precipitate</h4>'+left:'')+
     (risks?'<h4>Compatibility / precipitation screen</h4>'+risks:'')+warns+
     '<div class="lab-model">'+labEsc(d.note)+'</div>';
   renderDissolution(d);renderEvents(d);
@@ -138,7 +141,7 @@ function renderResult(d){
 function animateExperiment(result){
   if(labAnimation)cancelAnimationFrame(labAnimation);
   const duration=Math.max(0,+$('#labTime').value||1), speed=Math.max(.25,+$('#labPlayback').value||1);
-  const additions=(result.events||[]).filter(e=>e.event==='add_solid'||e.event==='add_solvent').sort((a,b)=>a.time_s-b.time_s);
+  const additions=(result.events||[]).filter(e=>e.event==='add_solid'||e.event==='add_solvent'||e.event==='add_liquid').sort((a,b)=>a.time_s-b.time_s);
   const dissolved=result.dissolution||{};
   const start=performance.now();labStartedAt=new Date();$('#simStartedAt').textContent='Started '+labStartedAt.toLocaleTimeString();let lastT=-1,added=new Set();
   $('#simParticles').innerHTML='';$('#simPrecipitate').innerHTML='';
@@ -154,11 +157,17 @@ function animateExperiment(result){
       added.add(e.material+'@'+e.time_s);spawnParticles(e.material,e.mass_g);
       const name=materialName(e.material);$('#simOverlay').innerHTML='<b>ADD '+labEsc(name).toUpperCase()+'</b><span>'+Number(e.mass_g).toFixed(2)+' g enters the vessel</span>';
     });
+    let liveResidue=0;
     Object.entries(dissolved).forEach(([id,x])=>{
-      const p=Math.max(0,Math.min(1,(t-(x.start_s||0))/Math.max(x.time_to_95_s||1,1)));
-      [...$('#simParticles').children].forEach((node,i)=>{if(i%7===0&&p>.25)node.setAttribute('opacity',String(Math.max(.05,1-p)));});
+      const elapsed=Math.max(0,t-(x.start_s||0));
+      const t95=Math.max(1,Number(x.kinetic_t95_estimate_s||x.time_to_95_s||1));
+      const equilibriumFraction=Math.max(0,Math.min(1,Number(x.capacity_g||0)/Math.max(Number(x.mass_g||1),1e-9)));
+      const dissolvedFraction=Math.max(0,Math.min(equilibriumFraction,equilibriumFraction*(1-Math.exp(-Math.log(20)*elapsed/t95))));
+      liveResidue+=Math.max(0,Number(x.mass_g||0)*(1-dissolvedFraction));
+      const opacity=Math.max(.08,1-dissolvedFraction);
+      [...$('#simParticles').children].forEach((node,i)=>{if(i%7===0)node.setAttribute('opacity',String(opacity));});
     });
-    const residue=Object.values(dissolved).reduce((s,x)=>s+(x.undissolved_g||0),0);renderPrecipitate(residue);
+    renderPrecipitate(liveResidue);
     if(t<duration){labAnimation=requestAnimationFrame(frame);}
     else{setLabState('COMPLETE');$('#simOverlay').innerHTML='<b>COMPLETE</b><span>Simulation finished — inspect dissolution and precipitation results below</span>';$('#labVessel').classList.remove('lab-vibrating');}
   }
