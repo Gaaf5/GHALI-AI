@@ -353,19 +353,20 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
             warnings.append(f"{mid}: no source-backed water-solubility curve is available; dissolution capacity is not claimed.")
             capacity=0.0; dissolved_mass=0.0; time_to_95=None; kinetic_t95=None
         else:
-            # Equilibrium comes from source-backed solubility. Time-to-dissolve is a separate
-            # engineering screening model inspired by Noyes-Whitney: smaller particles and
-            # stronger agitation increase interfacial mass transfer, while the concentration
-            # approaches equilibrium asymptotically rather than jumping to it instantly.
-            base_t95={"urea":120,"map":180,"dap":180,"mkp":240,"sop":300,"nop":150,
-                      "ammonium_nitrate":120,"ammonium_sulfate":240,"urea_phosphate":180,
-                      "potassium_chloride":240,"magnesium_sulfate":210,"calcium_nitrate":150,
-                      "calcium_chloride":180,"magnesium_nitrate":180,"citric_acid":240}.get(mid,240.0)
-            size_factor=math.sqrt(particle_size/500.0)
+            # Separate equilibrium capacity from dissolution kinetics.  The equilibrium
+            # ceiling answers "can this amount dissolve?"; kinetics answers "how much
+            # has dissolved by the requested experiment time?".  A fixed t95 must never
+            # turn a thermodynamically soluble small charge into an equilibrium residue.
+            size_factor=math.sqrt(500.0/max(particle_size,10.0))
             rpm_factor=1.0 if rpm<=0 else max(0.25,min(4.0,(rpm/300.0)**0.5))
             temp_factor=max(0.45,min(2.2,math.exp(0.012*(temp-20))))
-            kinetic_t95=base_t95*size_factor/rpm_factor/temp_factor
-            k=math.log(20.0)/max(kinetic_t95,1.0)
+            base_rate={"urea":0.030,"map":0.022,"dap":0.022,"mkp":0.018,"sop":0.014,
+                       "nop":0.030,"ammonium_nitrate":0.032,"ammonium_sulfate":0.018,
+                       "urea_phosphate":0.022,"potassium_chloride":0.018,"magnesium_sulfate":0.020,
+                       "calcium_nitrate":0.026,"calcium_chloride":0.022,"magnesium_nitrate":0.022,
+                       "citric_acid":0.018}.get(mid,0.018)
+            k=base_rate*size_factor*rpm_factor*temp_factor
+            kinetic_t95=math.log(20.0)/max(k,1e-9)
             steps=max(20,min(600,int(max(1.0,duration-at)*2)+1))
             dt=max(0.25,(duration-at)/steps) if duration>at else 0.0
             dmass=0.0; time_to_95=None; t=at
@@ -375,11 +376,17 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                               if resolve(x.get("material",""))=="water" and float(x.get("time_s",0))<=t)
                 capacity_now=capacity*(water_now/max(water_mass_total,1e-12))
                 equilibrium_now=min(mass,capacity_now)
+                # Noyes-Whitney-inspired concentration driving force: the closer the
+                # dissolved concentration gets to the mixed-solution equilibrium, the
+                # smaller the instantaneous dissolution rate becomes.
                 dmass += max(0.0,equilibrium_now-dmass)*(1-math.exp(-k*dt))
-                if time_to_95 is None and equilibrium_now>=mass*0.95 and dmass>=mass*0.95:
+                if time_to_95 is None and equilibrium_now>0 and dmass>=equilibrium_now*0.95:
                     time_to_95=t
-            # `capacity` already contains the shared-solution effective ceiling.
             dissolved_mass=min(mass,max(0.0,dmass))
+            if capacity >= mass:
+                warnings.append(f"{mid}: equilibrium is fully dissolvable at the modeled water charge; final residue is a kinetic/time effect only.")
+            else:
+                warnings.append(f"{mid}: equilibrium capacity is below the charged mass; {max(0.0,mass-capacity):.1f} g remains as equilibrium solid even after sufficient time.")
         remaining=max(0.0,mass-dissolved_mass)
         dissolved[mid]=dissolved.get(mid,0)+dissolved_mass
         undissolved[mid]=undissolved.get(mid,0)+remaining

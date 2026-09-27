@@ -116,7 +116,7 @@ function renderDissolution(result){
     const src=x.solubility_source||'No source-backed curve';
     return '<div class="diss-row"><div class="diss-top"><b>'+labEsc(materialName(id))+'</b><span>'+status+'</span></div>'+
       '<div class="diss-bar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'+
-      '<div class="diss-meta"><span>'+pct.toFixed(1)+'% dissolved</span><span>'+(x.time_to_95_s==null?'95% not reachable':Number(x.time_to_95_s).toFixed(1)+' s to 95%')+'</span></div>'+
+      '<div class="diss-meta"><span>'+pct.toFixed(1)+'% dissolved</span><span>'+(x.time_to_95_s==null?'95% not reached in run':Number(x.time_to_95_s).toFixed(1)+' s to 95%')+'</span></div>'+
       '<div class="diss-meta"><span>Pure-water capacity: '+(x.pure_water_capacity_g==null?'—':Number(x.pure_water_capacity_g).toFixed(1)+' g')+'</span><span>Mixed capacity: '+Number(x.mixed_solution_effective_capacity_g??x.capacity_g??0).toFixed(1)+' g</span></div>'+
       '<div class="diss-meta"><span>Solvent occupancy: '+(x.solvent_occupancy_factor==null?'—':(Number(x.solvent_occupancy_factor)*100).toFixed(1)+'%')+'</span><span>Other-solute load: '+(x.other_solute_particle_ratio==null?'—':Number(x.other_solute_particle_ratio).toFixed(3)+' mol particles/mol H₂O')+'</span></div>'+
       '<div class="diss-meta"><span>Particle: '+Number(x.particle_size_um||500).toFixed(0)+' µm</span><span>Estimated t95: '+(x.kinetic_t95_estimate_s==null?'—':Number(x.kinetic_t95_estimate_s).toFixed(0)+' s')+'</span></div>'+
