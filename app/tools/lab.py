@@ -2,6 +2,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from typing import Any
+from app.tools.solubility_data import aqueous_solubility, SOURCE_SOLUBILITY_CURVES
 
 # Digital-lab data are engineering approximations, not physical measurements.
 # Every result carries a confidence class and model provenance.
@@ -53,46 +54,23 @@ def resolve(name: str) -> str:
 def catalog():
     out=[]
     for key,v in MATERIALS.items():
-        sol20,sol_source,sol_url=_solubility_g_per_100g_water(key,20) if "SOLUBILITY_CURVES" in globals() else (None,"","")
+        sol20,sol_source,sol_url,sol_quality=_solubility_g_per_100g_water(key,20)
         out.append({"id":key,"name":ARABIC_NAMES.get(key,key.replace("_"," ").title()),
                     "kind":v["kind"],"mw":v["mw"],"density":v["density"],
                     "solubility_g_100ml":v["solubility_g_100ml"],"solubility_g_per_100g_water_20c":sol20,
-                    "solubility_source":sol_source,"solubility_source_url":sol_url,"cp":v["cp"]})
+                    "solubility_source":sol_source,"solubility_source_url":sol_url,"solubility_quality":sol_quality,"cp":v["cp"]})
     return out
 
-SOLUBILITY_CURVES = {
-    # Basis: g solute / 100 g water. Values are reference data; interpolation only within sourced ranges.
-    "urea": {"points":[(0,66.7),(20,108.0),(40,167.0),(60,251.0),(80,400.0),(100,733.0)],"source":"Fertilizer-grade reference: about 108 g/100 g water at 20 °C; practical fertigation data report about 105 kg/100 L at 20 °C","url":"https://www.dpird.nsw.gov.au/agriculture/water/irrigation/crops/fertigation"},
-    "map": {"points":[(0,22.7),(20,37.1),(25,40.4)],"source":"EPA PPRTV / NLM at 25 °C; fertilizer product specification at 20 °C","url":"https://www.epa.gov/sites/default/files/2021-09/documents/diammoniumphosphate.pdf"},
-    "dap": {"points":[(10,57.5),(25,69.5)],"source":"CRC/NLM: 57.5 g/100 mL water at 10 °C and 69.5 g/100 g water at 25 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Ammonium-Phosphate-Dibasic"},
-    "mkp": {"points":[(20,18.0),(25,25.0),(90,83.5)],"source":"Ullmann/HSDB and CRC values for KH2PO4; 18 g/100 g water at 20 °C, 25 g/100 cc at 25 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/potassium%20dihydrogen%20orthophosphate"},
-    "sop": {"points":[(0,7.4),(10,9.3),(20,11.1),(25,12.0),(30,13.0),(40,14.8),(60,18.2),(80,21.4),(90,22.9),(100,24.1)],"source":"PubChem/ICSC: 12 g/100 mL water at 25 °C; independent reference table gives 11.1 at 20 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Potassium-sulfate"},
-    "nop": {"points":[(0,13.3),(10,20.9),(20,31.6),(30,45.8),(40,63.9),(50,85.5),(60,110.0),(70,138.0),(80,169.0),(90,202.0),(100,246.0)],"source":"KNO3 reference solubility data / PubChem","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Potassium-nitrate"},
-    "ammonium_nitrate": {"points":[(0,118.3),(20,200.0),(100,871.0)],"source":"CRC/HSDB and ILO-WHO ICSC: 200 g/100 mL water at 20 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Ammonium-nitrate"},
-    "potassium_chloride": {"points":[(0,27.6),(10,31.0),(20,34.0),(30,37.0),(40,40.0),(50,42.6)],"source":"Standard KCl solubility table; 34.0 g/100 mL water at 20 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Potassium-Chloride"},
-    "ammonium_sulfate": {"points":[(0,70.6),(25,76.7),(100,103.8)],"source":"CRC/Merck values reported by PubChem: 70.6 g/100 g water at 0 °C, 76.7 at 25 °C, 103.8 at 100 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/6097028"},
-    "magnesium_sulfate": {"points":[(20,71.0),(40,91.0)],"source":"MgSO4·7H2O reference data; hydrate explicitly modeled","url":"https://pubchem.ncbi.nlm.nih.gov/compound/magnesium-sulfate"},
-    "calcium_nitrate": {"points":[(0,105.0),(20,129.0),(100,363.0)],"source":"Calcium nitrate tetrahydrate reference: 129 g/100 mL water at 20 °C","url":"https://www.sciencemadness.org/smwiki/index.php/Calcium_nitrate"},
-    "calcium_chloride": {"points":[(0,59.5),(20,74.5),(25,81.3),(40,128.0),(60,137.0),(80,147.0),(100,159.0)],"source":"ICSC/CRC: 74.5 g/100 mL water at 20 °C; 81.3 g/100 g water at 25 °C","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Calcium-Chloride"},
-    "magnesium_nitrate": {"points":[(20,125.0)],"source":"Industrial fertilizer/technical reference: magnesium nitrate solubility 125 g/100 mL water","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Magnesium-nitrate"},
-    "citric_acid": {"points":[(10,54.0),(20,59.2),(30,64.3),(40,68.6),(50,70.9),(60,73.5),(70,76.2),(80,78.8),(90,81.4),(100,84.0)],"source":"Merck/HSDB values reported by PubChem","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Citric-Acid"},
-    "urea_phosphate": {"points":[(20,100.0)],"source":"EuroChem Aqualis UP Solub: 1000 g/L water at 20 °C","url":"https://www.eurochem-wsf.com/products/up-solub/"},
-}
+SOLUBILITY_CURVES = SOURCE_SOLUBILITY_CURVES
 
-def _solubility_g_per_100g_water(material: str, temp_c: float) -> tuple[float|None,str,str]:
+def _solubility_g_per_100g_water(material: str, temp_c: float) -> tuple[float|None,str,str,str]:
+    data=aqueous_solubility(material,temp_c)
+    if data:
+        return data["value_g_per_100g_water"],data["source"],data["url"],data["quality"]
     curve=SOLUBILITY_CURVES.get(material)
-    if not curve:
-        return None,"no source-backed curve available",""
-    pts=curve["points"]
-    if temp_c < pts[0][0] or temp_c > pts[-1][0]:
-        return None,f"source data range is {pts[0][0]:g}–{pts[-1][0]:g} °C",curve.get("url","")
-    value=pts[0][1]
-    for (t0,v0),(t1,v1) in zip(pts,pts[1:]):
-        if t0 <= temp_c <= t1:
-            f=0.0 if t1==t0 else (temp_c-t0)/(t1-t0)
-            value=v0+(v1-v0)*f
-            break
-    return float(value),curve["source"],curve.get("url","")
+    if curve:
+        return None,f"source data range is {curve['points'][0][0]:g}–{curve['points'][-1][0]:g} °C",curve.get("url",""),curve.get("quality","reference")
+    return None,"no source-backed curve available","","unavailable"
 
 def _mix_factor(rpm: float, volume_l: float, viscosity=1.0):
     rpm=max(0.0,float(rpm)); volume=max(0.1,float(volume_l))
@@ -139,7 +117,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         solids += mass
         if first_solvent_time is not None and at < first_solvent_time:
             warnings.append(f"{mid}: solid is scheduled before the first solvent addition; dissolution timing is not physically established.")
-        sol_ref, sol_source, sol_url=_solubility_g_per_100g_water(mid,temp)
+        sol_ref, sol_source, sol_url, sol_quality=_solubility_g_per_100g_water(mid,temp)
         if sol_ref is None:
             warnings.append(f"{mid}: no source-backed water-solubility curve is available; dissolution capacity is not claimed.")
             capacity=0.0; dissolved_mass=0.0; time_to_95=None
@@ -169,8 +147,10 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         undissolved[mid]=undissolved.get(mid,0)+remaining
         dissolution_info[mid]={"mass_g":mass,"capacity_g":round(capacity,6),
                               "solubility_g_per_100g_water":sol_ref,
+                              "solubility_basis":"g solute / 100 g H2O",
                               "solubility_source":sol_source,
                               "solubility_source_url":sol_url,
+                              "solubility_quality":sol_quality,
                               "water_mass_total_g":round(water_mass_total,6),
                               "final_dissolved_g":dissolved_mass,"final_pct":100*dissolved_mass/max(mass,1e-12),
                               "complete":mass<=capacity and dissolved_mass>=mass*0.95,
