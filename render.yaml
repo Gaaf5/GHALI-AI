@@ -7,11 +7,13 @@ services:
     plan: starter
     envVars:
       - key: GHALI_LLM_PROVIDER
-        value: openai
-      - key: OPENAI_MODEL
-        value: gpt-5.6-luna
-      - key: OPENAI_API_KEY
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: GEMINI_API_KEY
         sync: false
+      - key: GHALI_WEB_SEARCH
+        value: "false"
       - key: GHALI_ENABLE_SETUP
         value: "false"
       - key: GHALI_ADMIN_USER

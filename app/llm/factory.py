@@ -1,5 +1,6 @@
 from .ollama_provider import OllamaProvider
 from .openai_provider import OpenAIProvider
+from .gemini_provider import GeminiProvider
 
 
 def create_llm(provider=None):
@@ -9,4 +10,6 @@ def create_llm(provider=None):
         return OllamaProvider()
     if name == "openai":
         return OpenAIProvider()
+    if name == "gemini":
+        return GeminiProvider()
     raise ValueError(f"Unsupported LLM provider: {provider}")

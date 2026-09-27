@@ -24,10 +24,32 @@ class OpenAIProvider(BaseLLM):
             response = self.client.responses.create(**kwargs)
             return response.output_text
         except Exception as exc:
+            # Web Search is optional. If the API rejects the search tool or the
+            # project does not have it enabled, retry the same request without it.
+            msg = str(exc).lower()
+            search_error = tools and any(
+                marker in msg for marker in (
+                    "web_search", "web search", "unknown tool",
+                    "unsupported tool", "tool_choice", "tools is not supported",
+                )
+            )
+            if search_error:
+                try:
+                    response = self.client.responses.create(model=self.model, input=messages)
+                    return response.output_text
+                except Exception as retry_exc:
+                    exc = retry_exc
+                    msg = str(exc).lower()
+
             # Keep the local app usable when OpenAI credits/quota are exhausted.
             # On a laptop with Ollama running, transparently fall back to the local model.
-            msg = str(exc).lower()
-            quota_error = "insufficient_quota" in msg or "credit" in msg and "remaining" in msg or "error code: 429" in msg
+            quota_error = (
+                "insufficient_quota" in msg
+                or "credit" in msg and "remaining" in msg
+                or "credit_balance_exhausted" in msg
+                or "no credits" in msg
+                or "error code: 429" in msg
+            )
             if not quota_error:
                 raise
             try:
