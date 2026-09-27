@@ -150,7 +150,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     solid_ids={resolve(a.get("material","")) for a in additions
                if MATERIALS.get(resolve(a.get("material","")),{}).get("phase", "liquid" if MATERIALS.get(resolve(a.get("material","")),{}).get("kind")=="solvent" else "solid")=="solid"}
     if len(solid_ids)>1:
-        warnings.append("Multi-solute solubility is not additive: each value is a single-solute reference. Mixed-solution phase equilibria and salting-out/synergistic effects require measured multicomponent data.")
+        warnings.append("Multicomponent solution: pure-water solubility values are reference ceilings only; mixed-solution activity/common-ion effects are evaluated separately.")
     if water_mass_total <= 0 and solid_ids:
         warnings.append("No water was added: source-backed fertilizer solubility curves cannot be applied.")
     if any(x!="water" for x in liquid_ids if MATERIALS.get(x,{}).get("kind")=="solvent"):
@@ -272,8 +272,9 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         warnings.append("Boiling/volatility may dominate above the solvent's boiling range; this model does not simulate pressure.")
     confidence="screening"
     from app.tools.lab_chemistry import analyze as analyze_chemistry
-    chemistry=analyze_chemistry(experiment,dissolved)
-    warnings.extend(x["message"] for x in chemistry["compatibility_risks"])
+    aqueous_volume_l=(water_mass_total/max(MATERIALS["water"]["density"],1e-9)/1000.0) if water_mass_total>0 else volume
+    chemistry=analyze_chemistry(experiment,dissolved,MATERIALS,aqueous_volume_l)
+    warnings.extend(chemistry.get("warnings",[]))
     return {
         "status":"SIMULATED","confidence":confidence,"model":"GHALI Virtual Lab v2",
         "conditions":{"temperature_c":temp,"rpm":rpm,"duration_s":duration,"working_volume_l":volume,
@@ -291,34 +292,4 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "warnings":warnings,"events":events,
         "note":"Simulation is a screening model. Chemistry rules require validated property data and laboratory calibration before production use."
     }
-def sweep(base: dict[str,Any], variables: dict[str,list[float]], max_runs=250000) -> dict[str,Any]:
-    import itertools
-    keys=list(variables)
-    values=[list(variables[k]) for k in keys]
-    total=1
-    for v in values: total*=len(v)
-    if total>max_runs: raise ValueError(f"Sweep has {total} runs; maximum is {max_runs}.")
-    results=[]; best=None
-    for combo in itertools.product(*values):
-        exp=dict(base)
-        for k,v in zip(keys,combo):
-            exp[k]=v
-        r=simulate(exp)
-        score=(r["mass_balance"]["undissolved_solids_g"],-r["mixing_uniformity_pct"])
-        item={"variables":dict(zip(keys,combo)),"undissolved_g":r["mass_balance"]["undissolved_solids_g"],
-              "uniformity_pct":r["mixing_uniformity_pct"],"warnings":len(r["warnings"])}
-        results.append(item)
-        if best is None or score<best[0]: best=(score,item)
-    return {"runs":total,"best":best[1] if best else None,"results":results}
-
-def million_case_benchmark() -> dict[str,Any]:
-    # Deterministic numerical benchmark: one million lightweight state evaluations.
-    n=1_000_000; checksum=0.0
-    for i in range(n):
-        rpm=50+(i%951)
-        temp=5+(i%116)
-        t=5+(i%596)
-        mix=_mix_factor(rpm,10)
-        checksum += 1-math.exp(-(0.006+0.018*mix)*math.exp(.010*(temp-20))*t)
-    return {"runs":n,"checksum":round(checksum,6),"engine":"vector-free deterministic benchmark"}
-__all__=["MATERIALS","catalog","resolve","simulate","sweep","million_case_benchmark"]
+__all__=["MATERIALS","catalog","resolve","simulate"]

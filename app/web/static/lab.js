@@ -128,12 +128,17 @@ function renderResult(d){
   const rows=Object.entries(d.dissolved_g||{}).map(([k,v])=>'<div class="resrow"><span>'+labEsc(materialName(k))+'</span><b>'+v.toFixed(3)+' g</b></div>').join('');
   const left=Object.entries(d.undissolved_g||{}).map(([k,v])=>'<div class="resrow"><span>'+labEsc(materialName(k))+'</span><b>'+v.toFixed(3)+' g</b></div>').join('');
   const risks=(d.chemistry?.compatibility_risks||[]).map(x=>'<div class="lab-warning">⚗ '+labEsc(x.message)+'</div>').join('');
+  const multi=d.chemistry?.multicomponent||null;
+  const multiFlags=(multi?.flags||[]).map(x=>'<div class="lab-warning">◌ '+labEsc(x)+'</div>').join('');
+  const common=(multi?.common_ion_materials||[]).map(x=>labEsc(x.material)+': '+labEsc((x.common_ions||[]).join(', '))).join(' · ');
+  const kspRows=(multi?.known_ksp_screen||[]).map(x=>'<div class="resrow"><span>'+labEsc(x.product)+' · '+labEsc(x.status)+'</span><b>Q/Ksp '+Number(x.Q_over_Ksp||0).toExponential(2)+'</b></div>').join('');
   const warns=(d.warnings||[]).map(x=>'<div class="lab-warning">⚠ '+labEsc(x)+'</div>').join('');
   const solventVol=d.conditions?.actual_solvent_volume_l;
   const blends=Object.entries(d.liquid_blending||{}).map(([k,x])=>'<div class="resrow"><span>'+labEsc(materialName(k))+' · '+Number(x.concentration_wt_pct||0).toFixed(0)+' wt%</span><b>t95 ≈ '+Number(x.blend_t95_estimate_s||0).toFixed(0)+' s</b></div>').join('');
   $('#labResult').innerHTML='<div class="lab-kpis"><div><span>Uniformity</span><b>'+d.mixing_uniformity_pct.toFixed(1)+'%</b></div>'+
     '<div><span>Undissolved</span><b>'+u.toFixed(2)+' g</b></div><div><span>Solvent volume</span><b>'+(Number.isFinite(solventVol)?Number(solventVol).toFixed(3):'—')+' L</b></div><div><span>Density</span><b>'+d.estimated_density_g_ml.toFixed(3)+' g/mL</b></div></div>'+
     '<h4>Dissolved</h4>'+rows+(blends?'<h4>Liquid blending / homogenization</h4>'+blends:'')+(left?'<h4>Undissolved / precipitate</h4>'+left:'')+
+    (multi?'<h4>Multicomponent solution screen</h4><div class="resrow"><span>Ionic strength</span><b>'+Number(multi.ionic_strength_mol_L||0).toFixed(4)+' mol/L</b></div><div class="resrow"><span>Equilibrium mode</span><b>Screening — not closed thermodynamic equilibrium</b></div>'+(common?'<div class="resrow"><span>Common ions detected</span><b>'+common+'</b></div>':'')+(kspRows?'<h4>Known Ksp screen</h4>'+kspRows:'')+multiFlags:'')+
     (risks?'<h4>Compatibility / precipitation screen</h4>'+risks:'')+warns+
     '<div class="lab-model">'+labEsc(d.note)+'</div>';
   renderDissolution(d);renderEvents(d);
@@ -183,28 +188,12 @@ async function runLab(){
     setLabState('ERROR');
   }
 }
-function rangeInclusive(a,b,step){
-  a=+a;b=+b;step=Math.abs(+step||1);if(step<=0)return[];const out=[];
-  if(a<=b){for(let x=a;x<=b+1e-9;x+=step)out.push(+x.toFixed(8));}
-  else{for(let x=a;x>=b-1e-9;x-=step)out.push(+x.toFixed(8));}return out;
-}
-async function runLabSweep(){
-  try{const base=labExperiment(),rpm=rangeInclusive($('#swR0').value,$('#swR1').value,$('#swRs').value),temp=rangeInclusive($('#swT0').value,$('#swT1').value,$('#swTs').value);
-    const count=rpm.length*temp.length;$('#labSweepCount').textContent=count+' runs';if(count>1000000)throw Error('Reduce the sweep; maximum is 1,000,000 virtual runs per request.');
-    const d=await api('/api/lab/sweep',{method:'POST',body:JSON.stringify({base,variables:{rpm,temperature_c:temp},max_runs:1000000})});
-    $('#labSweepResult').innerHTML='<div class="lab-sweep-summary"><b>'+d.runs.toLocaleString()+' runs completed</b><span>Best screen: '+d.best.undissolved_g.toFixed(2)+' g undissolved · '+d.best.uniformity_pct.toFixed(1)+'% uniformity</span><code>'+labEsc(JSON.stringify(d.best.variables))+'</code></div>';
-  }catch(e){$('#labSweepResult').innerHTML='<div class="bad">'+labEsc(e.message)+'</div>'}
-}
 async function loadLabHistory(){
   try{const d=await api('/api/lab/experiments');$('#labHistory').innerHTML=d.map(x=>'<div class="lab-history-row"><span><b>'+labEsc(x.name)+'</b><small>'+labEsc(x.created_at)+'</small></span><em>'+labEsc(String(x.result?.confidence||'screening'))+'</em></div>').join('')||'<span class="muted">No experiments yet.</span>';
   }catch(e){$('#labHistory').innerHTML='<span class="bad">'+labEsc(e.message)+'</span>'}
 }
-function comboSelected(){return [...$('#labComboMaterials').selectedOptions].map(o=>o.value)}
-function updateComboCount(){const n=comboSelected().length||0,a=+$('#labComboR0').value||1,b=+$('#labComboR1').value||1,ordered=$('#labComboOrdered').checked,repeats=$('#labComboRepeats').checked;let total=0;for(let r=Math.min(a,b);r<=Math.max(a,b);r++){if(ordered&&repeats)total+=n**r;else if(ordered)total+=r>n?0:n===0?0:(Array.from({length:r},(_,i)=>n-i).reduce((x,y)=>x*y,1));else if(repeats)total+=n?Array.from({length:r},(_,i)=>n+i).reduce((x,y)=>x*y,1)/Array.from({length:r},(_,i)=>i+1).reduce((x,y)=>x*y,1):0;else total+=r>n?0:Array.from({length:r},(_,i)=>n-i).reduce((x,y)=>x*y,1)/Array.from({length:r},(_,i)=>i+1).reduce((x,y)=>x*y,1)}$('#labComboCount').textContent=total.toLocaleString()+' combinations'}
-function initComboSelector(){const box=$('#labComboMaterials');box.innerHTML=labCatalog.map((m,i)=>'<option value="'+labEsc(m.id)+'"'+(i<10&&m.kind!=='solvent'?' selected':'')+'>'+labEsc(m.name)+' · '+labEsc(m.kind)+'</option>').join('');updateComboCount()}
-async function runLabCombinations(){try{const ids=comboSelected(),r0=+$('#labComboR0').value||1,r1=+$('#labComboR1').value||r0,limit=+$('#labComboLimit').value||1000,start=+$('#labComboStart').value||0;if(!ids.length)throw Error('Select at least one candidate material.');if(Math.min(r0,r1)<1||Math.max(r0,r1)>ids.length)throw Error('Level range must be valid for the selected materials.');const d=await api('/api/lab/combinations',{method:'POST',body:JSON.stringify({material_ids:ids,levels:[...Array(Math.abs(r1-r0)+1)].map((_,i)=>Math.min(r0,r1)+i),start,limit,ordered:$('#labComboOrdered').checked,repeats:$('#labComboRepeats').checked,dose_g:+$('#labComboDose').value||100,spacing_s:+$('#labComboSpacing').value||0,base:{vessel:{working_volume_l:+$('#labVolume').value||10},temperature_c:+$('#labTemp').value||20,rpm:+$('#labRpm').value||300,duration_s:+$('#labTime').value||1200,base_solvent:'water',base_solvent_mass_g:1000}})});$('#labComboStart').value=d.next_start;const preview=d.results.slice(0,12).map(x=>'<div class="lab-combo-row"><b>#'+x.index+'</b><span>'+x.combination.map(materialName).join(' → ')+'</span><em>'+x.status+'</em><small>'+Number(x.undissolved_g||0).toFixed(2)+' g undissolved</small></div>').join('');$('#labComboResult').innerHTML='<div class="lab-sweep-summary"><b>'+d.completed.toLocaleString()+' tested</b><span>'+d.remaining.toLocaleString()+' remaining</span><code>next start: '+d.next_start+'</code></div>'+preview}catch(e){$('#labComboResult').innerHTML='<div class="bad">'+labEsc(e.message)+'</div>'}}
 async function initLab(){
-  try{await loadLabCatalog();initComboSelector();if(!document.querySelector('.lab-add-row')){addLabRow('water',1000,0);addLabRow('map',10,1);}
+  try{await loadLabCatalog();if(!document.querySelector('.lab-add-row')){addLabRow('water',1000,0);addLabRow('map',10,1);}
     await loadLabHistory();resetSimulator();
   }catch(e){$('#labResult').innerHTML='<div class="bad">'+labEsc(e.message)+'</div>'}
 }
@@ -212,5 +201,5 @@ $('#labAddRow').onclick=()=>addLabRow('urea',100,0);
 $('#labMixerToggle').onclick=()=>{labMixerOn=!labMixerOn;$('#labMixerToggle').textContent=labMixerOn?'Mixer ON':'Mixer OFF';$('#labMixerToggle').classList.toggle('on',labMixerOn);$('#labVessel').classList.toggle('lab-vibrating',labMixerOn);};
 $('#labClear').onclick=()=>{document.querySelector('#labAdditions').innerHTML='';renumberRows();resetSimulator();};
 $('#labReset').onclick=resetSimulator;
-$('#labRun').onclick=runLab;$('#labSweep').onclick=runLabSweep;$('#labComboRun').onclick=runLabCombinations;$('#labComboMaterials').onchange=updateComboCount;$('#labComboR0').oninput=updateComboCount;$('#labComboR1').oninput=updateComboCount;$('#labComboOrdered').onchange=updateComboCount;$('#labComboRepeats').onchange=updateComboCount;
+$('#labRun').onclick=runLab;
 (async()=>{await initLab()})();

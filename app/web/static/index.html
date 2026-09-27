@@ -70,18 +70,9 @@
 <div class="card lab-result"><div class="section-title"><h3>Measured simulation result</h3><span id="labConfidence" class="engine-badge">—</span></div><div id="labResult"><div class="empty">The result and mass balance will appear after the run.</div></div></div>
 <div class="card lab-solubility"><div class="section-title"><div><h3>Dissolution monitor</h3><p class="muted">Predicted dissolution progress for every added solid.</p></div></div><div id="labDissolution"><div class="empty">No materials yet.</div></div></div>
 </div>
-<div class="card lab-sweep-card">
-<div class="section-title"><div><h3>Scenario engine</h3><p class="muted">Deterministic parameter sweeps for large virtual trial sets.</p></div><span id="labSweepCount" class="engine-badge">0 runs</span></div>
-<div class="sweep-grid"><label>RPM start<input id="swR0" type="number" value="100"></label><label>RPM end<input id="swR1" type="number" value="800"></label><label>RPM step<input id="swRs" type="number" value="100"></label><label>Temp start<input id="swT0" type="number" value="20"></label><label>Temp end<input id="swT1" type="number" value="80"></label><label>Temp step<input id="swTs" type="number" value="10"></label></div>
-<button id="labSweep" class="primary">Run scenario sweep</button><div id="labSweepResult"></div>
-<div class="lab-combination-engine">
-<div class="section-title"><div><h3>Combinatorial experiment engine</h3><p class="muted">Tests ordered material sequences systematically, including A+B and B+A, then longer sequences.</p></div><span id="labComboCount" class="engine-badge">0 combinations</span></div>
-<label>Candidate materials<select id="labComboMaterials" multiple size="8"></select></label>
-<div class="sweep-grid"><label>Level start<input id="labComboR0" type="number" min="1" max="24" value="2"></label><label>Level end<input id="labComboR1" type="number" min="1" max="24" value="2"></label><label>Batch size<input id="labComboLimit" type="number" min="1" max="10000" value="1000"></label><label>Start index<input id="labComboStart" type="number" min="0" value="0"></label><label>Dose / material (g)<input id="labComboDose" type="number" min="0.01" value="100"></label><label>Spacing (s)<input id="labComboSpacing" type="number" min="0" value="10"></label></div>
-<div class="lab-actions"><label class="inline-control"><input id="labComboOrdered" type="checkbox" checked><span>Order matters</span></label><label class="inline-control"><input id="labComboRepeats" type="checkbox" checked><span>Allow repeats</span></label><button id="labComboRun" class="primary">Run combination batch</button></div>
-<div id="labComboResult" class="lab-combo-result"><div class="empty">Select candidate materials and start a batch.</div></div>
-</div>
-<div class="lab-history"><h4>Experiment history</h4><div id="labHistory"><span class="muted">No experiments loaded.</span></div></div>
+<div class="card lab-history-card">
+<div class="section-title"><div><h3>Experiment history</h3><p class="muted">Saved virtual experiments for this account.</p></div></div>
+<div id="labHistory"><span class="muted">No experiments loaded.</span></div>
 </div>
 </section>
 
