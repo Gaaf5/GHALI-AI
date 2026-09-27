@@ -34,21 +34,22 @@ MATERIALS = {
     "phosphoric_acid": {"kind":"acid","phase":"liquid","concentration_wt_pct":85.0,"mw":97.994,"density":1.685,"solubility_g_100ml":None,"cp":1.35,"blend_t95_s":90.0},
     "phosphoric_acid_food_grade": {"kind":"acid","phase":"liquid","concentration_wt_pct":85.0,"mw":97.994,"density":1.685,"solubility_g_100ml":None,"cp":1.35,"blend_t95_s":90.0},
     "monoethanolamine": {"kind":"solvent","phase":"liquid","mw":61.083,"density":1.012,"solubility_g_100ml":None,"cp":2.7,"blend_t95_s":60.0},
-    "zinc_sulfate": {"kind":"salt","phase":"solid","mw":161.44,"density":3.8,"solubility_g_100ml":22.0,"cp":0.8},
-    "seaweed_extract": {"kind":"organic","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3},
-    "aqua_amin": {"kind":"organic","phase":"liquid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3,"blend_t95_s":120.0},
-    "ammonium_sulfite": {"kind":"salt","phase":"solid","mw":116.14,"density":1.41,"solubility_g_100ml":None,"cp":1.2},
+    "zinc_sulfate": {"kind":"salt","phase":"solid","mw":287.54,"density":1.97,"hydrate":"heptahydrate","solubility_g_100ml":54.0,"cp":0.8},
+    "seaweed_extract": {"kind":"organic","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3,"water_soluble":True,"solubility_quality":"product TDS qualitative","solubility_source":"Water-soluble seaweed extract product TDS; 100% soluble grade","solubility_source_url":"https://www.duofenagri.com/products/good-quality-bulk-water-soluble-seaweed-extract-fertilizer-powder","solubility_note":"Product-grade seaweed extracts vary; simulator uses complete-solubility claim only when the selected grade is specified as water-soluble."},
+    "aqua_amin": {"kind":"organic","phase":"liquid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3,"blend_t95_s":120.0,"product_note":"Name is ambiguous. The US Aquamine product found publicly is liquid ammonium sulfate; exact composition is withheld in the SDS."},
+    "aquamine_us_las": {"kind":"fertilizer","phase":"liquid","mw":132.14,"density":1.0,"solubility_g_100ml":None,"cp":1.2,"blend_t95_s":120.0,"product_note":"Aquamine Liquid Ammonium Sulfate, US product. Exact concentration/density must come from the product COA/SDS; not guessed."},
+    "ammonium_sulfite": {"kind":"salt","phase":"solid","mw":116.14,"density":1.41,"solubility_g_100ml":60.8,"cp":1.2,"hydrate_note":"Reference is hydrate-sensitive."},
     "boric_acid": {"kind":"acid","phase":"solid","mw":61.83,"density":1.435,"solubility_g_100ml":4.72,"cp":1.0},
-    "amino_acid_80": {"kind":"organic","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3},
-    "amino_acid_40": {"kind":"organic","phase":"liquid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3,"blend_t95_s":120.0},
-    "tkp_00_33_66": {"kind":"fertilizer","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.1},
-    "mkpi_00_58_38": {"kind":"fertilizer","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.1},
-    "potassium_hydroxide": {"kind":"base","phase":"solid","mw":56.106,"density":2.044,"solubility_g_100ml":None,"cp":1.2},
-    "potassium_humate": {"kind":"organic","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3},
-    "sodium_benzoate": {"kind":"preservative","phase":"solid","mw":144.11,"density":1.5,"solubility_g_100ml":None,"cp":1.2},
-    "sodium_edta": {"kind":"chelate","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.2},
-    "calcium_sodium_edta": {"kind":"chelate","phase":"solid","mw":374.27,"density":1.0,"solubility_g_100ml":None,"cp":1.2},
-    "lisiveg": {"kind":"organic","phase":"liquid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3,"blend_t95_s":120.0},
+    "amino_acid_80": {"kind":"organic","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3,"water_soluble":True,"solubility_quality":"product TDS qualitative","solubility_source":"Amino acid 80% fertilizer powder TDS; completely water-soluble grade","solubility_source_url":"https://www.natureagrotech.cn/wp-content/uploads/2023/02/10.Amino-acid-80.pdf","solubility_note":"80% fertilizer powder products are commonly specified as completely water-soluble; exact product grade should control."},
+    "amino_acid_40": {"kind":"organic","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3,"water_soluble":True,"solubility_quality":"product TDS qualitative","solubility_source":"Amino acid 40% fertilizer powder TDS; fully soluble grade","solubility_source_url":"https://www.mos-agro.com/products/amino-acids-fertilizers/powder/40-standard.html","solubility_note":"40% fertilizer powder products are commonly specified as fully soluble; exact product form/grade should control."},
+    "tkp_00_33_66": {"kind":"fertilizer","phase":"solid","mw":212.27,"density":2.564,"solubility_g_100ml":98.5,"cp":1.1},
+    "mkpi_00_58_38": {"kind":"fertilizer","phase":"solid","mw":120.09,"density":1.0,"solubility_g_100ml":134.0,"cp":1.1,"water_soluble":True},
+    "potassium_hydroxide": {"kind":"base","phase":"solid","mw":56.106,"density":2.044,"solubility_g_100ml":111.0,"cp":1.2},
+    "potassium_humate": {"kind":"organic","phase":"solid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3,"water_soluble":True,"solubility_quality":"product-grade qualitative","solubility_source":"Potassium humate fertilizer grades advertised as completely water soluble; product composition varies","solubility_source_url":"https://www.seegrow.com.cn/productinfo/670049.html","solubility_note":"Commercial potassium humate grades vary; only 100% water-soluble grades should be treated as fully soluble."},
+    "sodium_benzoate": {"kind":"preservative","phase":"solid","mw":144.11,"density":1.5,"solubility_g_100ml":63.0,"cp":1.2},
+    "sodium_edta": {"kind":"chelate","phase":"solid","mw":372.24,"density":1.0,"hydrate":"dihydrate","solubility_g_100ml":108.0,"cp":1.2},
+    "calcium_sodium_edta": {"kind":"chelate","phase":"solid","mw":374.27,"density":1.0,"solubility_g_100ml":None,"cp":1.2,"water_soluble":True,"solubility_note":"Water-soluble, but the public source found gives a 0.1 M preparation point rather than a saturation curve."},
+    "lisiveg": {"kind":"organic","phase":"liquid","mw":None,"density":1.0,"solubility_g_100ml":None,"cp":1.3,"blend_t95_s":120.0,"product_note":"Plant-derived enzymatic protein hydrolysate technology. Project specification: N 4.66%, organic matter 40%, peptides/amino acids 29.1%; verify the exact batch COA before using density/solids values."},
 }
 ARABIC_NAMES = {
     "urea":"اليوريا","map":"MAP","dap":"DAP","mkp":"MKP","sop":"SOP","nop":"نترات البوتاسيوم",
@@ -59,7 +60,7 @@ ARABIC_NAMES = {
     "methanol":"الميثانول","acetone":"الأسيتون","glycerol":"الجليسرول","phosphoric_acid":"حمض الفوسفوريك 85%",
     "phosphoric_acid_food_grade":"حمض الفوسفوريك Food Grade 85%","monoethanolamine":"MEA مونو إيثانول أمين",
     "zinc_sulfate":"سلفات الزنك","seaweed_extract":"Sea Weed Extract","aqua_amin":"Aqua Amin",
-    "ammonium_sulfite":"أمونيوم سلفيت","boric_acid":"بوريك أسيد","amino_acid_80":"Amino Acid 80%",
+    "aquamine_us_las":"Aquamine® Liquid Ammonium Sulfate (USA)","ammonium_sulfite":"أمونيوم سلفيت","boric_acid":"بوريك أسيد","amino_acid_80":"Amino Acid 80%",
     "amino_acid_40":"Amino Acid 40%","tkp_00_33_66":"TKP 00-33-66","mkpi_00_58_38":"MKPI 00-58-38",
     "potassium_hydroxide":"KOH هيدروكسيد البوتاسيوم","potassium_humate":"بوتاسيوم هيوميت / هيوميك أسيد",
     "sodium_benzoate":"بنزوات الصوديوم","sodium_edta":"Sodium EDTA","calcium_sodium_edta":"Calcium EDTA",
@@ -68,7 +69,16 @@ ARABIC_NAMES = {
 ALIASES = {v.lower():k for k,v in ARABIC_NAMES.items()}
 ALIASES.update({"ماء":"water","يوريا":"urea","كبريتات البوتاسيوم":"sop","سوب":"sop",
                 "نترات البوتاسيوم":"nop","نوب":"nop","فوسفات اليوريا":"urea_phosphate",
-                "كلوريد البوتاسيوم":"potassium_chloride","مذيب":"water"})
+                "كلوريد البوتاسيوم":"potassium_chloride","مذيب":"water",
+                "mea":"monoethanolamine","مونو ايثانول امين":"monoethanolamine","مونو إيثانول أمين":"monoethanolamine",
+                "sea weed":"seaweed_extract","seaweed":"seaweed_extract","اعشاب بحرية":"seaweed_extract","الأعشاب البحرية":"seaweed_extract",
+                "سلفات الزنك":"zinc_sulfate","كبريتات الزنك":"zinc_sulfate","اكوا امين":"aquamine_us_las","أكوا أمين":"aquamine_us_las",
+                "aquamine":"aquamine_us_las","ammonium sulfite":"ammonium_sulfite","امونيوم سلفيت":"ammonium_sulfite",
+                "boric acid":"boric_acid","بوريك اسيد":"boric_acid","حمض البوريك":"boric_acid",
+                "amino acid 80":"amino_acid_80","amino acid 40":"amino_acid_40","tkp":"tkp_00_33_66","mkpi":"mkpi_00_58_38",
+                "koh":"potassium_hydroxide","k2oh":"potassium_hydroxide","هيوميك اسيد":"potassium_humate","هيوميك":"potassium_humate",
+                "potassium humate":"potassium_humate","sodium edta":"sodium_edta","calcium edta":"calcium_sodium_edta",
+                "lisiveg":"lisiveg","بنزوات الصوديوم":"sodium_benzoate"})
 MIXING_COEFF = {"water":1.0,"ethanol":0.9,"isopropanol":0.9,"methanol":0.9,
                 "acetone":0.8,"glycerol":1.2}
 def resolve(name: str) -> str:
@@ -79,6 +89,14 @@ def catalog():
     out=[]
     for key,v in MATERIALS.items():
         sol20,sol_source,sol_url,sol_quality=_solubility_g_per_100g_water(key,20)
+        if sol20 is None and v.get("water_soluble"):
+            sol_source=v.get("solubility_source","Product technical data: water-soluble grade")
+            sol_url=v.get("solubility_source_url","")
+            sol_quality=v.get("solubility_quality","product-spec qualitative")
+        if sol20 is None and v.get("phase")=="liquid":
+            sol_source=v.get("product_note","Liquid feed: dissolution equilibrium is not modeled.")
+            sol_url=v.get("solubility_source_url","")
+            sol_quality=v.get("solubility_quality","liquid-feed / blending")
         out.append({"id":key,"name":ARABIC_NAMES.get(key,key.replace("_"," ").title()),
                     "kind":v["kind"],"mw":v["mw"],"density":v["density"],
                     "solubility_g_100ml":v["solubility_g_100ml"],"solubility_g_per_100g_water_20c":sol20,
@@ -163,7 +181,36 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         particle_size=float(a.get("particle_size_um") or data.get("particle_size_um",500.0))
         particle_size=max(10.0,min(10000.0,particle_size))
         sol_ref, sol_source, sol_url, sol_quality=_solubility_g_per_100g_water(mid,temp)
-        if sol_ref is None:
+        if sol_ref is None and data.get("water_soluble"):
+            if water_mass_total <= 0:
+                warnings.append(f"{mid}: product is described as water-soluble, but no water was charged; dissolution is not claimed.")
+                capacity=0.0; dissolved_mass=0.0; time_to_95=None; kinetic_t95=None
+            else:
+                # Product/TDS-level claim, not a saturation curve. Treat the selected
+                # grade as dissolvable at the current dilution, but do not invent a
+                # temperature-dependent equilibrium limit.
+                capacity=mass
+                base_t95={"seaweed_extract":240,"amino_acid_80":240,"amino_acid_40":240,
+                          "potassium_humate":300,"calcium_sodium_edta":300}.get(mid,240.0)
+                size_factor=math.sqrt(particle_size/500.0)
+                rpm_factor=1.0 if rpm<=0 else max(0.25,min(4.0,(rpm/300.0)**0.5))
+                temp_factor=max(0.45,min(2.2,math.exp(0.006*(temp-20))))
+                kinetic_t95=base_t95*size_factor/rpm_factor/temp_factor
+                k=math.log(20.0)/max(kinetic_t95,1.0)
+                steps=max(20,min(600,int(max(1.0,duration-at)*2)+1))
+                dt=max(0.25,(duration-at)/steps) if duration>at else 0.0
+                dmass=0.0; time_to_95=None; t=at
+                for _ in range(steps):
+                    t=min(duration,t+dt)
+                    dmass += max(0.0,mass-dmass)*(1-math.exp(-k*dt))
+                    if time_to_95 is None and dmass>=mass*0.95:
+                        time_to_95=t
+                dissolved_mass=min(mass,max(0.0,dmass))
+                warnings.append(f"{mid}: fully-water-soluble product claim used; no universal saturation curve was available for this commercial grade.")
+                sol_source=data.get("solubility_source","Product technical data: water-soluble grade")
+                sol_url=data.get("solubility_source_url","")
+                sol_quality=data.get("solubility_quality","product-spec qualitative")
+        elif sol_ref is None:
             warnings.append(f"{mid}: no source-backed water-solubility curve is available; dissolution capacity is not claimed.")
             capacity=0.0; dissolved_mass=0.0; time_to_95=None; kinetic_t95=None
         else:

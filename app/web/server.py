@@ -265,7 +265,11 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return self.send_data(500,jb({'error':'Internal server error'}))
     def end_headers(self):
-        if hasattr(self,'_last_token'): self.send_header('Set-Cookie',f'ghali_session={self._last_token}; Path=/; HttpOnly; SameSite=Lax; Secure'); del self._last_token
+        if hasattr(self,'_last_token'):
+            secure = self.headers.get('X-Forwarded-Proto','').lower() == 'https' or self.headers.get('Host','').endswith('.onrender.com')
+            cookie = f'ghali_session={self._last_token}; Path=/; HttpOnly; SameSite=Lax' + ('; Secure' if secure else '')
+            self.send_header('Set-Cookie', cookie)
+            del self._last_token
         super().end_headers()
     def status(self):
         model=getattr(STATE.brain.llm,'model','unknown')
