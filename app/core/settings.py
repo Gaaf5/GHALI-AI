@@ -1,22 +1,28 @@
-﻿import os
+import os
 from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 
-APP_NAME = "GHALI AI"
-VERSION = "0.1.0"
-LLM_PROVIDER = os.getenv("GHALI_LLM_PROVIDER", "ollama")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
-GHALI_WEB_SEARCH = os.getenv("GHALI_WEB_SEARCH", "false").lower() in {"1", "true", "yes", "on"}
-OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
-OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "256"))
-KNOWLEDGE_PATH = Path(os.getenv("GHALI_KNOWLEDGE_PATH", "data/knowledge"))
-DATABASE_PATH = Path(os.getenv("GHALI_DATABASE_PATH", "data/ghali.db"))
-
-PORT = int(os.getenv("PORT", "8765"))
+APP_NAME="GHALI AI"
+VERSION="0.1.0"
+LLM_PROVIDER=os.getenv("GHALI_LLM_PROVIDER","ollama")
+OLLAMA_MODEL=os.getenv("OLLAMA_MODEL","qwen2.5:3b")
+OLLAMA_URL=os.getenv("OLLAMA_URL","http://localhost:11434/api/chat")
+OPENAI_API_KEY=os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL=os.getenv("OPENAI_MODEL","gpt-5.6-luna")
+GEMINI_API_KEY=os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL=os.getenv("GEMINI_MODEL","gemini-3.8-flash")
+MISTRAL_API_KEY=os.getenv("MISTRAL_API_KEY")
+MISTRAL_MODEL=os.getenv("MISTRAL_MODEL","mistral-small-latest")
+GROQ_API_KEY=os.getenv("GROQ_API_KEY")
+GROQ_MODEL=os.getenv("GROQ_MODEL","qwen/qwen3.8-27b")
+OPENROUTER_API_KEY=os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_MODEL=os.getenv("OPENROUTER_MODEL","openrouter/free")
+GHALI_LLM_FALLBACKS=os.getenv("GHALI_LLM_FALLBACKS","gemini,mistral,groq,openrouter,openai,ollama")
+GHALI_WEB_SEARCH=os.getenv("GHALI_WEB_SEARCH","false").lower() in {"1","true","yes","on"}
+OLLAMA_TEMPERATURE=float(os.getenv("OLLAMA_TEMPERATURE","0.2"))
+OLLAMA_NUM_PREDICT=int(os.getenv("OLLAMA_NUM_PREDICT","256"))
+KNOWLEDGE_PATH=Path(os.getenv("GHALI_KNOWLEDGE_PATH","data/knowledge"))
+DATABASE_PATH=Path(os.getenv("GHALI_DATABASE_PATH","data/ghali.db"))
+PORT=int(os.getenv("PORT","8765"))

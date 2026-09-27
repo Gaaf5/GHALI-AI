@@ -7,10 +7,28 @@ services:
     plan: starter
     envVars:
       - key: GHALI_LLM_PROVIDER
-        value: gemini
+        value: auto
+      - key: GHALI_LLM_FALLBACKS
+        value: gemini,mistral,groq,openrouter,openai
       - key: GEMINI_MODEL
         value: gemini-3.8-flash
       - key: GEMINI_API_KEY
+        sync: false
+      - key: MISTRAL_MODEL
+        value: mistral-small-latest
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: qwen/qwen3.8-27b
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openrouter/free
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.6-luna
+      - key: OPENAI_API_KEY
         sync: false
       - key: GHALI_WEB_SEARCH
         value: "false"
