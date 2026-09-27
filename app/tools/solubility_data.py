@@ -19,6 +19,8 @@ SOURCE_SOLUBILITY_CURVES={
 "magnesium_nitrate":{"points":[(0,63.9),(20,70.07),(40,81.8),(60,93.7)],"quality":"A/B - Merck hydrate-specific data","source":"Magnesium nitrate hexahydrate solubility table","url":"https://www.merckmillipore.com/HN/en/support/calculators-and-apps/solubility-table-compounds-water-temperature"},
 "citric_acid":{"points":[(10,54.0),(20,59.2),(30,64.3),(40,68.6),(50,70.9),(60,73.5),(70,76.2),(80,78.8),(90,81.4),(100,84.0)],"quality":"A - Merck/HSDB","source":"Merck Index / HSDB values reproduced by PubChem","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Citric-Acid"},
 "urea_phosphate":{"points":[(20,96.0)],"quality":"B - fertilizer technical reference","source":"Approx. 960 g/L at 20 C converted to ~96 g/100 g water; corroborated by fertilizer formulation literature","url":"https://patents.google.com/patent/US8419820B2/en"},
+"boric_acid":{"points":[(0,2.52),(10,3.49),(20,4.72),(30,6.23),(40,8.08),(50,10.27),(60,12.97),(70,15.75),(80,19.10),(90,23.27),(100,27.53)],"quality":"A/B - PubChem/HSDB compiled reference","source":"Kirk-Othmer temperature-dependent boric acid water solubility reproduced by PubChem","url":"https://pubchem.ncbi.nlm.nih.gov/compound/Boric-Acid"},
+"zinc_sulfate":{"points":[(20,22.0)],"quality":"B - ILO/WHO ICSC; approximate basis conversion","source":"ICSC 1698 reports 22 g/100 mL water at 20 C; used approximately as g/100 g H2O for screening","url":"https://www.inchem.org/documents/icsc/icsc/eics1698.htm"},
 }
 def interpolate_curve(curve,temp_c):
     points=curve["points"]
