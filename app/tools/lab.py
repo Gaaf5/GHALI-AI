@@ -470,6 +470,10 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         else:
             capacity=0.0
             pure_capacity=0.0
+        final_capacity=final_state.get("effective_capacity_g") if final_state else None
+        if final_capacity is not None:
+            final_capacity=max(0.0,float(final_capacity)*allocation_ratio)
+        peak_dissolved=0.0
         if sol_ref is None and data.get("water_soluble"):
             if water_mass_total <= 0:
                 warnings.append(f"{mid}: product is described as water-soluble, but no water was charged; dissolution is not claimed.")
@@ -626,7 +630,40 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     from app.tools.lab_chemistry import analyze as analyze_chemistry
     aqueous_volume_l=(water_mass_total/max(MATERIALS["water"]["density"],1e-9)/1000.0) if water_mass_total>0 else volume
     chemistry=analyze_chemistry(experiment,dissolved,MATERIALS,aqueous_volume_l)
+
+    # Feed equilibrium precipitation back into the global mass balance. The chemistry
+    # layer returns material-level dissolved masses after Ksp removal; the virtual
+    # lab must expose the same state, otherwise the chemistry screen and mass balance
+    # would disagree.
+    precip_state=(chemistry.get("precipitation_equilibrium") or {}).get("dissolved_g") or {}
+    precip_delta={}
+    for mid,old_mass in list(dissolved.items()):
+        new_mass=max(0.0,float(precip_state.get(mid,old_mass)))
+        delta=max(0.0,float(old_mass)-new_mass)
+        if delta>1e-8:
+            precip_delta[mid]=delta
+            dissolved[mid]=new_mass
+            undissolved[mid]=undissolved.get(mid,0.0)+delta
+            info=dissolution_info.get(mid)
+            if info:
+                info["final_dissolved_g"]=new_mass
+                info["final_pct"]=100.0*new_mass/max(float(info.get("mass_g",old_mass)),1e-12)
+                info["reprecipitated_g"]=float(info.get("reprecipitated_g",0.0))+delta
+                info["precipitated"]=True
+                info["precipitated_g"]=float(info.get("precipitated_g",0.0))+delta
+                info["complete"]=False
+    if precip_delta:
+        for p in (chemistry.get("precipitation_equilibrium") or {}).get("events",[]):
+            events.append({"time_s":duration,"event":"precipitation","material":p["product"],
+                           "mass_g":round(sum(precip_delta.values()),6),
+                           "precipitated_mol":p.get("precipitated_mol",0.0),
+                           "Q_over_Ksp_before":p.get("Q_over_Ksp_before")})
+        # Re-analyze the actual final aqueous phase so pH, ionic strength and Ksp
+        # screens describe the same mass-balanced state returned to the UI.
+        chemistry=analyze_chemistry(experiment,dissolved,MATERIALS,aqueous_volume_l)
+        warnings.append("Ksp precipitation was fed back into the final mass balance; reported dissolved/undissolved masses include the predicted precipitated solid.")
     warnings.extend(chemistry.get("warnings",[]))
+    dissolved_total=sum(dissolved.values())
     return {
         "status":"SIMULATED","confidence":confidence,"model":"GHALI Virtual Lab v2",
         "conditions":{"temperature_c":temp,"rpm":rpm,"duration_s":duration,"working_volume_l":volume,
