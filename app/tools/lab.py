@@ -266,12 +266,55 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                 solid_totals[mid]["pure_capacity_g"]=sol_ref*water_mass_total/100.0
         else:
             solid_totals[mid]["pure_capacity_g"]=None
+    # Final equilibrium plus a time-resolved equilibrium schedule.
+    # The final state includes every solid, but each material's dissolution starts
+    # from the solution that actually exists when that material is added.
     shared_eq=_shared_solvent_equilibrium(
         [{"material":mid,**row} for mid,row in solid_totals.items()],
         water_mass_total,temp
     ) if solid_totals and water_mass_total>0 else {}
+    solid_additions=[{
+        "material":resolve(a.get("material","")),
+        "mass_g":max(0.0,float(a.get("mass_g",0))),
+        "time_s":float(a.get("time_s",0)),
+    } for a in additions
+      if MATERIALS.get(resolve(a.get("material","")),{}).get("phase","solid")=="solid"]
+    # Equilibrium events include both solid and water additions, plus the final
+    # experiment time. Water changes the solvent basis; solids change the shared
+    # solute load. Simultaneous additions at the same timestamp are evaluated
+    # together, while later additions update the target for material already present.
+    eq_times=sorted(set([0.0,duration]
+                        +[x["time_s"] for x in solid_additions]
+                        +[float(x.get("time_s",0)) for x in additions
+                          if resolve(x.get("material",""))=="water"]))
+    shared_schedule={}
+    for eq_t in eq_times:
+        active={}
+        for x in solid_additions:
+            if x["time_s"]<=eq_t:
+                mid=x["material"]
+                active.setdefault(mid,{"mass_g":0.0})
+                active[mid]["mass_g"]+=x["mass_g"]
+        water_at_t=sum(max(0.0,float(x.get("mass_g",0))) for x in additions
+                       if resolve(x.get("material",""))=="water" and float(x.get("time_s",0))<=eq_t)
+        rows_at_t=[]
+        for mid,row in active.items():
+            data=MATERIALS[mid]
+            sol_t,src_t,url_t,qual_t=_solubility_g_per_100g_water(mid,temp)
+            qualitative_t=sol_t is None and bool(data.get("water_soluble"))
+            pure_t=None if (sol_t is None and not qualitative_t) else (row["mass_g"] if qualitative_t else sol_t*water_at_t/100.0)
+            try:
+                from app.tools.lab_chemistry import SPECIES
+                pf=max(1.0,sum(float(s.stoich) for s in SPECIES.get(mid,[])))
+            except Exception:
+                pf=1.0
+            rows_at_t.append({"material":mid,"mass_g":row["mass_g"],
+                              "pure_capacity_g":pure_t,"qualitative":qualitative_t,
+                              "particle_count_factor":pf})
+        shared_schedule[eq_t]=_shared_solvent_equilibrium(rows_at_t,water_at_t,temp) if rows_at_t else {"materials":{}}
     if shared_eq:
         warnings.append("Shared-solvent occupancy is active: dissolved materials compete for the same aqueous phase; individual pure-water solubility ceilings are not added independently.")
+        warnings.append("Time-resolved equilibrium is active: each addition is evaluated against the solution state that exists at that time; later additions can force re-precipitation or re-dissolution of earlier solids.")
     solid_ids={resolve(a.get("material","")) for a in additions
                if MATERIALS.get(resolve(a.get("material","")),{}).get("phase", "liquid" if MATERIALS.get(resolve(a.get("material","")),{}).get("kind")=="solvent" else "solid")=="solid"}
     if len(solid_ids)>1:
@@ -306,7 +349,13 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         particle_size=float(a.get("particle_size_um") or data.get("particle_size_um",500.0))
         particle_size=max(10.0,min(10000.0,particle_size))
         sol_ref, sol_source, sol_url, sol_quality=_solubility_g_per_100g_water(mid,temp)
-        shared_state=shared_eq.get("materials",{}).get(mid,{}) if shared_eq else {}
+        # Capacity at the moment this material enters the vessel. Future
+        # additions are intentionally excluded from its initial dissolution state.
+        prior_eq_times=[et for et in shared_schedule if et<=at]
+        addition_eq_time=max(prior_eq_times) if prior_eq_times else 0.0
+        addition_eq=shared_schedule.get(addition_eq_time,{"materials":{}})
+        shared_state=addition_eq.get("materials",{}).get(mid,{}) if addition_eq else {}
+        final_state=shared_eq.get("materials",{}).get(mid,{}) if shared_eq else {}
         total_mid_mass=solid_totals.get(mid,{}).get("mass_g",mass)
         allocation_ratio=mass/max(total_mid_mass,1e-12)
         pure_capacity_total=shared_state.get("pure_capacity_g")
@@ -375,28 +424,59 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
             k=base_rate*size_factor*rpm_factor*temp_factor*driving_force_factor
             equilibrium_fraction=min(1.0,capacity/max(mass,1e-9))
             kinetic_t95=math.log(20.0)/max(k,1e-9) if equilibrium_fraction>=0.95 else None
-            steps=max(20,min(600,int(max(1.0,duration-at)*2)+1))
-            dt=max(0.25,(duration-at)/steps) if duration>at else 0.0
-            dmass=0.0; time_to_95=None; t=at
-            for _ in range(steps):
-                t=min(duration,t+dt)
-                water_now=sum(max(0.0,float(x.get("mass_g",0))) for x in additions
-                              if resolve(x.get("material",""))=="water" and float(x.get("time_s",0))<=t)
-                capacity_now=capacity*(water_now/max(water_mass_total,1e-12))
-                equilibrium_now=min(mass,capacity_now)
-                # Noyes-Whitney-inspired concentration driving force: the closer the
-                # dissolved concentration gets to the mixed-solution equilibrium, the
-                # smaller the instantaneous dissolution rate becomes.
-                dmass += max(0.0,equilibrium_now-dmass)*(1-math.exp(-k*dt))
-                # 95% of the charged mass is a valid target only when the
-                # equilibrium state itself can hold at least 95% of the charge.
-                if time_to_95 is None and capacity >= mass*0.95 and dmass>=mass*0.95:
-                    time_to_95=t
+            # Piecewise time-dependent dissolution/precipitation.  The target
+            # equilibrium is allowed to change whenever a later addition changes the
+            # shared solution.  This is intentionally a first-order engineering
+            # relaxation model, not a full transient electrolyte calculation.
+            dmass=0.0
+            peak_dissolved=0.0
+            time_to_95=None
+            event_times=sorted(set([at,duration]
+                                   +[float(et) for et in shared_schedule if at < float(et) <= duration]))
+            for interval_start,interval_end in zip(event_times,event_times[1:]):
+                dt_total=max(0.0,interval_end-interval_start)
+                if dt_total<=0:
+                    continue
+                probe_t=interval_start+1e-9
+                prior_times=[et for et in shared_schedule if float(et)<=probe_t]
+                state_time=max(prior_times) if prior_times else 0.0
+                interval_state=shared_schedule.get(state_time,{"materials":{}})
+                interval_material=interval_state.get("materials",{}).get(mid,{})
+                target_capacity=interval_material.get("effective_capacity_g")
+                if target_capacity is None:
+                    target_capacity=0.0
+                target_capacity=max(0.0,min(mass,float(target_capacity)*allocation_ratio))
+
+                # Recompute the mass-transfer rate against the current equilibrium
+                # target.  A lower target causes precipitation; a higher target causes
+                # re-dissolution. Both processes use the same first-order relaxation
+                # approximation, with loading relative to the interval target.
+                interval_loading=min(1.0,mass/max(target_capacity,1e-9))
+                interval_drive=min(6.0,1.0/math.sqrt(max(interval_loading,1e-9)))
+                k_interval=base_rate*size_factor*rpm_factor*temp_factor*interval_drive
+                dmass += (target_capacity-dmass)*(1-math.exp(-k_interval*dt_total))
+                dmass=max(0.0,min(mass,dmass))
+                peak_dissolved=max(peak_dissolved,dmass)
+
+                # A 95% crossing only counts if the final equilibrium can still
+                # sustain 95% after all later additions have arrived.
+                final_probe=shared_schedule.get(duration,{"materials":{}}).get("materials",{}).get(mid,{})
+                final_probe_capacity=final_probe.get("effective_capacity_g")
+                final_probe_capacity=(0.0 if final_probe_capacity is None else
+                                      max(0.0,float(final_probe_capacity)*allocation_ratio))
+                if time_to_95 is None and final_probe_capacity>=mass*0.95 and dmass>=mass*0.95:
+                    time_to_95=interval_end
+
             dissolved_mass=min(mass,max(0.0,dmass))
-            if capacity >= mass:
-                warnings.append(f"{mid}: equilibrium is fully dissolvable at the modeled water charge; final residue is a kinetic/time effect only.")
+            final_capacity=final_state.get("effective_capacity_g") if final_state else None
+            if final_capacity is not None:
+                final_capacity=max(0.0,float(final_capacity)*allocation_ratio)
+            if final_capacity is not None and final_capacity < mass:
+                warnings.append(f"{mid}: final mixed-solution equilibrium capacity is {final_capacity:.1f} g; later additions can force additional re-precipitation of earlier dissolved material.")
+            elif capacity >= mass:
+                warnings.append(f"{mid}: equilibrium is fully dissolvable at the moment of addition; final residue is controlled by later mixed-equilibrium changes and kinetics.")
             else:
-                warnings.append(f"{mid}: equilibrium capacity is below the charged mass; {max(0.0,mass-capacity):.1f} g remains as equilibrium solid even after sufficient time.")
+                warnings.append(f"{mid}: equilibrium capacity at addition is below the charged mass; undissolved solid remains available for later dissolution only if the mixed-solution capacity subsequently increases.")
         remaining=max(0.0,mass-dissolved_mass)
         dissolved[mid]=dissolved.get(mid,0)+dissolved_mass
         undissolved[mid]=undissolved.get(mid,0)+remaining
@@ -410,6 +490,9 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                               "solubility_g_per_100g_water":sol_ref,
                               "pure_water_capacity_g":round(pure_capacity,6),
                               "mixed_solution_effective_capacity_g":round(capacity,6),
+                              "equilibrium_capacity_at_addition_g":round(capacity,6),
+                              "final_mixed_equilibrium_capacity_g":round(final_capacity,6) if final_capacity is not None else None,
+                              "equilibrium_state_time_s":addition_eq_time,
                               "other_solute_particle_ratio":shared_state.get("other_solute_particle_ratio"),
                               "solvent_occupancy_factor":shared_state.get("solvent_occupancy_factor",1.0),
                               "solubility_basis":"g solute / 100 g H2O",
@@ -418,7 +501,9 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                               "solubility_quality":sol_quality,
                               "water_mass_total_g":round(water_mass_total,6),
                               "final_dissolved_g":dissolved_mass,"final_pct":100*dissolved_mass/max(mass,1e-12),
-                              "complete":mass<=capacity and dissolved_mass>=mass*0.95,
+                              "peak_dissolved_g":round(peak_dissolved,6),
+                              "reprecipitated_g":round(max(0.0,peak_dissolved-dissolved_mass),6),
+                              "complete":(final_capacity is None and mass<=capacity or final_capacity is not None and final_capacity>=mass) and dissolved_mass>=mass*0.95,
                               "time_to_95_s":time_to_95,"start_s":at,
                               "undissolved_g":remaining,"precipitated":False,"precipitated_g":0.0}
         if sol_ref is not None and mass>capacity:
