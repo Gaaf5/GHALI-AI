@@ -150,55 +150,73 @@ def _shared_solvent_equilibrium(solid_rows, water_mass_g, temperature_c):
             "particle_count_factor":max(1.0,float(row.get("particle_count_factor",1.0))),
         }
 
-    # Fixed-point iteration: each material sees the load contributed by all
-    # other dissolved materials in the same final aqueous phase.
-    for _ in range(80):
-        previous={k:v["dissolved_g"] for k,v in states.items()}
+    # Conservative shared-solvent saturation budget.
+    # Solve one common saturation factor for the whole aqueous phase. This avoids
+    # row-order dependence: simultaneous additions receive the same shared factor.
+    # For each material i, dissolved_i = min(charged_i, pure_capacity_i * f).
+    # The factor f is chosen so that the sum of normalized dissolved loads is <= 1.
+    capacities={}
+    for mid,state in states.items():
+        cap=state.get("pure_capacity_g")
+        if cap is None and state["qualitative"]:
+            cap=state["mass_g"]
+        capacities[mid]=max(float(cap or 0.0),0.0)
+
+    def normalized_load(factor):
+        load=0.0
         for mid,state in states.items():
-            if state["qualitative"]:
-                target=state["mass_g"]
-            elif state["pure_capacity_g"] is None:
-                target=0.0
+            cap=capacities[mid]
+            if cap<=0:
+                continue
+            load += min(state["mass_g"],cap*factor)/cap
+        return load
+
+    if normalized_load(1.0)<=1.0+1e-12:
+        shared_factor=1.0
+    else:
+        lo,hi=0.0,1.0
+        for _ in range(80):
+            mid_factor=(lo+hi)/2.0
+            if normalized_load(mid_factor)>1.0:
+                hi=mid_factor
             else:
-                other_particles=0.0
-                for other,other_state in states.items():
-                    if other==mid:
-                        continue
-                    other_particles += (other_state["dissolved_g"] / max(MATERIALS[other]["mw"],1e-9)) * other_state["particle_count_factor"]
-                particle_ratio=other_particles/max(water_moles,1e-9)
-                # Shared-medium occupancy penalty. 1.0 means no other solutes;
-                # increasing dissolved particle load progressively consumes
-                # available solvent capacity.
-                occupancy_factor=1.0/(1.0 + particle_ratio)
-                target=min(state["mass_g"],state["pure_capacity_g"]*occupancy_factor)
-            state["dissolved_g"]=max(0.0,target)
-        delta=max(abs(states[k]["dissolved_g"]-previous[k]) for k in states) if states else 0.0
-        if delta<1e-7:
-            break
+                lo=mid_factor
+        shared_factor=lo
+
+    for mid,state in states.items():
+        cap=capacities[mid]
+        state["dissolved_g"]=min(state["mass_g"],cap*shared_factor) if cap>0 else 0.0
 
     total_dissolved=sum(x["dissolved_g"] for x in states.values())
+    total_capacity_load=normalized_load(shared_factor)
     out={}
     for mid,state in states.items():
-        other_particles=0.0
+        cap=capacities[mid]
+        other_load=0.0
         for other,other_state in states.items():
             if other==mid:
                 continue
-            other_particles += (other_state["dissolved_g"] / max(MATERIALS[other]["mw"],1e-9)) * other_state["particle_count_factor"]
-        particle_ratio=other_particles/max(water_moles,1e-9)
-        occupancy_factor=1.0 if state["qualitative"] else 1.0/(1.0+particle_ratio)
+            other_cap=capacities[other]
+            if other_cap>0:
+                other_load += other_state["dissolved_g"]/other_cap
+        occupancy_factor=max(0.0,1.0-other_load)
+        effective=cap*shared_factor
         out[mid]={
             "pure_capacity_g":state["pure_capacity_g"],
-            "effective_capacity_g":state["mass_g"] if state["qualitative"] else (state["pure_capacity_g"] or 0.0)*occupancy_factor,
+            "effective_capacity_g":effective,
             "dissolved_g":state["dissolved_g"],
-            "other_solute_particle_ratio":particle_ratio,
+            "other_solute_particle_ratio":other_load,
             "solvent_occupancy_factor":occupancy_factor,
+            "shared_saturation_factor":shared_factor,
+            "shared_saturation_load":total_capacity_load,
             "undissolved_g":max(0.0,state["mass_g"]-state["dissolved_g"]),
         }
     return {"materials":out,
             "water_mass_g":water_mass_g,
             "total_dissolved_solids_g":total_dissolved,
-            "shared_solvent_model":"iterative dissolved-species occupancy proxy",
-            "warning":"Mixed-solution capacity is an engineering screening estimate. Full thermodynamic prediction requires validated activity coefficients, speciation, solid-phase data and product-specific interaction parameters."}
+            "shared_solvent_model":"conservative shared saturation budget",
+            "shared_saturation_load":total_capacity_load,
+            "warning":"A conservative shared-solvent saturation budget is active. Pure-water solubility is not an independent solvent capacity for each material; later additions compete with the existing dissolved load. This is an engineering screening approximation, not a full multicomponent activity-coefficient model."}
 
 def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     vessel=experiment.get("vessel",{}) or {}
