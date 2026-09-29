@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from typing import Any
 from app.tools.solubility_data import aqueous_solubility, SOURCE_SOLUBILITY_CURVES
 from app.knowledge.evidence import evidence_for
+from app.tools.model_selector import select_activity_model
+from app.tools.lab_quality import assess_simulation, next_experiments
+from app.tools.phreeqc_adapter import discover_phreeqc
 
 # Digital-lab data are engineering approximations, not physical measurements.
 # Every result carries a confidence class and model provenance.
@@ -680,8 +683,23 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         warnings.append("Ksp precipitation was fed back into the final mass balance; reported dissolved/undissolved masses include the predicted precipitated solid.")
     warnings.extend(chemistry.get("warnings",[]))
     dissolved_total=sum(dissolved.values())
+    quality=assess_simulation({
+        "mass_balance":{
+            "input_g":sum(max(0.0,float(a.get("mass_g",0))) for a in additions
+                         if resolve(a.get("material",""))!="water"
+                         and MATERIALS.get(resolve(a.get("material","")),{}).get("phase","solid")=="solid"),
+            "dissolved_solids_g":dissolved_total,
+            "undissolved_solids_g":sum(undissolved.values()),
+        },
+        "solid_input_g":sum(max(0.0,float(a.get("mass_g",0))) for a in additions
+                           if resolve(a.get("material",""))!="water"
+                           and MATERIALS.get(resolve(a.get("material","")),{}).get("phase","solid")=="solid"),
+        "dissolution":dissolution_info,
+        "chemistry":chemistry,
+        "warnings":warnings,
+    }, bool(discover_phreeqc().get("available")))
     return {
-        "status":"SIMULATED","confidence":confidence,"model":"GHALI Virtual Lab v2",
+        "status":"SIMULATED","confidence":confidence,"model":"GHALI Virtual Lab v3",
         "conditions":{"temperature_c":temp,"rpm":rpm,"duration_s":duration,"working_volume_l":volume,
                       "actual_solvent_volume_l":round(solvent_volume_l,6),
                       "mixing_index":round(rate_index,4)},
@@ -695,6 +713,12 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "mixing_uniformity_pct":round(uniformity,3),
         "chemistry":chemistry,
         "warnings":warnings,"events":events,
+        "input_additions":[dict(a) for a in additions],
+        "quality":quality,
+        "next_experiments":next_experiments({
+            "conditions":{"temperature_c":temp,"rpm":rpm,"duration_s":duration},
+            "input_additions":[dict(a) for a in additions],
+        }),
         "note":"Simulation is a screening model. Chemistry rules require validated property data and laboratory calibration before production use."
     }
 
