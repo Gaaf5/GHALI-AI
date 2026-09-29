@@ -106,6 +106,24 @@ function renderUndissolved(amount){
   for(let i=0;i<count;i++)frag.appendChild(makeParticle(105+Math.random()*210,482+Math.random()*30,1.2+Math.random()*2,'#d4d0bd'));
   $('#simPrecipitate').appendChild(frag);
 }
+function renderReactionTimeline(result){
+  const steps=result.reaction_timeline||[];
+  const box=$('#labReactionTimeline'), details=$('#labReactionDetails');
+  if(!steps.length){box.innerHTML='<div class="empty">No chemical events yet.</div>';details.innerHTML='';return;}
+  const additions=steps.filter(x=>x.event==='addition');
+  box.innerHTML=additions.map((x,i)=>{
+    const formula=labEsc(x.display||x.material);
+    const next=additions[i+1];
+    return '<div class="reaction-step"><div class="rx-time">t = '+formatClock(x.time_s)+'</div><div class="rx-main">'+formula+'</div><div class="rx-sub">'+labEsc(x.description||'Chemical addition')+'</div></div>'+(next?'<div class="reaction-arrow">→</div>':'');
+  }).join('');
+  const last=additions[additions.length-1]||steps[steps.length-1];
+  const species=last?.species_after||[];
+  const precip=steps.filter(x=>x.event==='precipitation');
+  details.innerHTML='<div class="rx-species">'+species.map(s=>'<span>'+labEsc(s)+'</span>').join('')+'</div>'+
+    (last?.dissociation?.length?'<div class="rx-reaction"><b>Dissociation:</b> '+labEsc(last.display)+' → '+last.dissociation.map(labEsc).join(' + ')+'</div>':'')+
+    (precip.length?precip.map(x=>'<div class="rx-reaction"><b>Precipitation:</b> '+labEsc(x.display)+'</div>').join(''):'');
+  $('#labReactionState').textContent=(result.quality?.confidence||'SCREENING').toUpperCase();
+}
 function renderEvents(result){
   const events=[...(result.events||[])].sort((a,b)=>a.time_s-b.time_s);
   $('#labEvents').innerHTML=events.length?events.map(e=>'<div class="lab-event"><b>'+formatClock(e.time_s)+'</b><span>'+labEsc(e.event==='add_solid'?'Added '+materialName(e.material):'Added '+materialName(e.material))+'</span><em>'+Number(e.mass_g||0).toFixed(2)+' g</em></div>').join(''):'<div class="empty">No events.</div>';
@@ -168,7 +186,7 @@ function renderResult(d){
     (evidenceRows?'<h4>Evidence / References</h4>'+evidenceRows:'')+
     qPanel+warns+
     '<div class="lab-model">'+labEsc(d.note)+'</div>';
-  renderDissolution(d);renderEvents(d);
+  renderDissolution(d);renderEvents(d);renderReactionTimeline(d);
 }
 function animateExperiment(result){
   if(labAnimation)cancelAnimationFrame(labAnimation);

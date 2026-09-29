@@ -7,6 +7,7 @@ from app.knowledge.evidence import evidence_for
 from app.tools.model_selector import select_activity_model
 from app.tools.lab_quality import assess_simulation, next_experiments
 from app.tools.phreeqc_adapter import discover_phreeqc
+from app.tools.lab_reactions import build_reaction_timeline
 
 # Digital-lab data are engineering approximations, not physical measurements.
 # Every result carries a confidence class and model provenance.
@@ -698,6 +699,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "chemistry":chemistry,
         "warnings":warnings,
     }, bool(discover_phreeqc().get("available")))
+    reaction_timeline=build_reaction_timeline(additions, chemistry)
     return {
         "status":"SIMULATED","confidence":confidence,"model":"GHALI Virtual Lab v3",
         "conditions":{"temperature_c":temp,"rpm":rpm,"duration_s":duration,"working_volume_l":volume,
@@ -712,6 +714,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "estimated_density_g_ml":round(density,6),
         "mixing_uniformity_pct":round(uniformity,3),
         "chemistry":chemistry,
+        "reaction_timeline":reaction_timeline,
         "warnings":warnings,"events":events,
         "input_additions":[dict(a) for a in additions],
         "quality":quality,
