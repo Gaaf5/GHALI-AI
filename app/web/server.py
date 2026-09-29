@@ -13,6 +13,7 @@ from app.memory import MemoryManager
 from app.tools.formulation import solve_named_formulation
 from app.tools.lab import catalog as lab_catalog, simulate as lab_simulate
 from app.knowledge.evidence import registry as evidence_registry
+from app.tools.equilibrium_engine import engine_status
 from app.web.auth import AuthManager
 
 ROOT=Path(__file__).resolve().parent; STATIC=ROOT/'static'; STATE=None
@@ -272,6 +273,10 @@ class Handler(BaseHTTPRequestHandler):
                     'principle':'Every source-backed laboratory number must retain source, basis, temperature/range and evidence class.',
                     'model_note':'Product TDS data are grade-specific; pure-water solubility is not a mixed-fertilizer equilibrium model.'
                 }}))
+            if path=='/api/lab/engine':
+                u=self.require('chat')
+                if not u:return
+                return self.send_data(200,jb(engine_status()))
             if path=='/api/lab/experiments':
                 u=self.require('chat')
                 if not u:return

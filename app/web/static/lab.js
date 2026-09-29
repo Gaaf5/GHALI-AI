@@ -223,7 +223,12 @@ async function loadLabHistory(){
   try{const d=await api('/api/lab/experiments');$('#labHistory').innerHTML=d.map(x=>'<div class="lab-history-row"><span><b>'+labEsc(x.name)+'</b><small>'+labEsc(x.created_at)+'</small></span><em>'+labEsc(String(x.result?.confidence||'screening'))+'</em></div>').join('')||'<span class="muted">No experiments yet.</span>';
   }catch(e){$('#labHistory').innerHTML='<span class="bad">'+labEsc(e.message)+'</span>'}
 }
+async function loadLabEngine(){
+  try{const r=await fetch('/api/lab/engine');const d=await r.json();const el=$('#labEngineStatus');if(el&&d.active)el.textContent=(d.active.engine||'unknown')+' · '+(d.phreeqc?.available?'PHREEQC ready':'screening fallback');}catch(e){}
+}
+
 async function initLab(){
+  loadLabEngine();
   try{await loadLabCatalog();if(!document.querySelector('.lab-add-row')){addLabRow('water',1000,0);addLabRow('map',10,1);}
     await loadLabHistory();resetSimulator();
   }catch(e){$('#labResult').innerHTML='<div class="bad">'+labEsc(e.message)+'</div>'}
