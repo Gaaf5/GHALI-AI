@@ -117,13 +117,16 @@ function renderReactionTimeline(result){
     const next=visualSteps[i+1];
     const action=labEsc(x.action||('+ '+label));
     const isShift=x.event==='equilibrium_shift';
-    const additionIndex=isShift?'':String(additions.indexOf(x));
-    const eq=x.dissociation_equation?'<div class="rx-reaction">'+labEsc(x.dissociation_equation)+'</div>':'';
+    const additionIndex=isShift?'-1':String(additions.indexOf(x));
+    const eq=x.dissociation_equation?'<div class="rx-reaction"><b>'+((x.event==='equilibrium_shift')?'Equilibrium repartition:':'Dissociation:')+'</b> '+labEsc(x.dissociation_equation)+'</div>':'';
     const st=x.material_state||{};
-    const stateLine=(st.kinetic_dissolved_g!==undefined?'<div class="rx-state">actual dissolved ≈ '+Number(st.kinetic_dissolved_g).toFixed(2)+' g</div>':'')+
-      (st.event_equilibrium_target_g!==undefined?'<div class="rx-state">after-event equilibrium target ≈ '+Number(st.event_equilibrium_target_g).toFixed(2)+' g</div>':'')+
-      (st.pre_event_equilibrium_target_g!==undefined?'<div class="rx-state">before-event equilibrium target ≈ '+Number(st.pre_event_equilibrium_target_g).toFixed(2)+' g</div>':'')+
-      (st.equilibrium_undissolved_g!==undefined?'<div class="rx-state">equilibrium solid remaining ≈ '+Number(st.equilibrium_undissolved_g).toFixed(2)+' g</div>':'');
+    const stateLine=(st.kinetic_dissolved_g!==undefined?'<div class="rx-state"><b>Actual kinetic state:</b> '+Number(st.kinetic_dissolved_g).toFixed(2)+' g dissolved · '+Number(st.kinetic_undissolved_g||0).toFixed(2)+' g solid</div>':'')+
+      (st.event_equilibrium_target_g!==undefined?'<div class="rx-state"><b>After-event equilibrium target:</b> '+Number(st.event_equilibrium_target_g).toFixed(2)+' g dissolved</div>':'')+
+      (st.pre_event_equilibrium_target_g!==undefined?'<div class="rx-state"><b>Before-event target:</b> '+Number(st.pre_event_equilibrium_target_g).toFixed(2)+' g</div>':'')+
+      (st.equilibrium_undissolved_g!==undefined?'<div class="rx-state"><b>Equilibrium solid:</b> '+Number(st.equilibrium_undissolved_g).toFixed(2)+' g</div>':'')+
+      (x.event==='addition' && x.dissociation?.length?'<div class="rx-state"><b>Dissociated species:</b> '+x.dissociation.map(labEsc).join(' + ')+'</div>':'')+
+      (x.event==='addition' && x.acid_base_network?.length?'<div class="rx-state"><b>Candidate acid/base network:</b> '+x.acid_base_network.length+' equilibria · not event-time speciation</div>':'')+
+      (x.event==='equilibrium_shift'?'<div class="rx-state"><b>Interpretation:</b> '+labEsc(x.description||'Shared aqueous-phase equilibrium changed; this is not a new chemical reaction.')+'</div>':'');
     return '<div class="reaction-step'+(isShift?' reaction-shift':'')+'" data-reaction-index="'+additionIndex+'"><div class="rx-time">t = '+formatClock(x.time_s)+'</div><div class="rx-main">'+action+'</div><div class="rx-sub"><b>'+formula+'</b> · '+labEsc(x.description||'Chemical addition')+'</div>'+stateLine+eq+'</div>'+(next?'<div class="reaction-arrow">→</div>':'');
   }).join('');
   const last=additions[additions.length-1]||steps[steps.length-1];
@@ -184,6 +187,8 @@ function renderDissolution(result){
     const src=x.solubility_source||'No source-backed curve';
     const eqMax=Number(x.equilibrium_max_pct??100);
     const t95Label=x.time_to_95_s!=null?Number(x.time_to_95_s).toFixed(1)+' s to 95%':(eqMax<95?'95% impossible at equilibrium':'95% not reached in run');
+    const finalEq=x.final_mixed_equilibrium_capacity_g;
+    const transientNote=(finalEq!=null && Number(x.final_dissolved_g||0)>Number(finalEq)+0.01)?'<div class="rx-state">Transient supersaturation: actual dissolved ('+Number(x.final_dissolved_g).toFixed(1)+' g) is above the final equilibrium target ('+Number(finalEq).toFixed(1)+' g); the model is still relaxing toward equilibrium.</div>':'';
     return '<div class="diss-row"><div class="diss-top"><b>'+labEsc(materialName(id))+'</b><span>'+status+'</span></div>'+
       '<div class="diss-bar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'+
       '<div class="diss-meta"><span>'+pct.toFixed(1)+'% dissolved</span><span>'+t95Label+'</span></div>'+
@@ -191,8 +196,10 @@ function renderDissolution(result){
       '<div class="diss-meta"><span>Pure-water capacity: '+(x.pure_water_capacity_g==null?'—':Number(x.pure_water_capacity_g).toFixed(1)+' g')+'</span><span>Capacity at addition: '+Number(x.equilibrium_capacity_at_addition_g??x.mixed_solution_effective_capacity_g??x.capacity_g??0).toFixed(1)+' g</span></div>'+
       '<div class="diss-meta"><span>Final mixed-equilibrium capacity: '+(x.final_mixed_equilibrium_capacity_g==null?'—':Number(x.final_mixed_equilibrium_capacity_g).toFixed(1)+' g')+'</span><span>Equilibrium state: t='+Number(x.equilibrium_state_time_s||0).toFixed(1)+' s</span></div>'+
       '<div class="diss-meta"><span>Peak dissolved: '+(x.peak_dissolved_g==null?'—':Number(x.peak_dissolved_g).toFixed(1)+' g')+'</span><span>Re-precipitated: '+(Number(x.reprecipitated_g||0)>0?Number(x.reprecipitated_g).toFixed(1)+' g':'—')+'</span></div>'+
-      '<div class="diss-meta"><span>Remaining shared capacity: '+(x.shared_saturation_factor==null?'—':(Number(x.shared_saturation_factor)*100).toFixed(1)+'%')+'</span><span>Existing-solute load: '+(x.other_solute_particle_ratio==null?'—':(Number(x.other_solute_particle_ratio)*100).toFixed(1)+'%')+'</span></div>'+
+      '<div class="diss-meta"><span>Shared capacity at addition: '+(x.shared_saturation_factor_at_addition==null?'—':(Number(x.shared_saturation_factor_at_addition)*100).toFixed(1)+'%')+'</span><span>Existing-solute load at addition: '+(x.other_solute_particle_ratio==null?'—':(Number(x.other_solute_particle_ratio)*100).toFixed(1)+'%')+'</span></div>'+
+      '<div class="diss-meta"><span>Final shared saturation load: '+(x.final_shared_saturation_load==null?'—':(Number(x.final_shared_saturation_load)*100).toFixed(1)+'%')+'</span><span>Final shared capacity remaining: '+(x.final_shared_capacity_remaining==null?'—':(Number(x.final_shared_capacity_remaining)*100).toFixed(1)+'%')+'</span></div>'+
       '<div class="diss-meta"><span>Particle: '+Number(x.particle_size_um||500).toFixed(0)+' µm</span><span>Estimated t95: '+(x.kinetic_t95_estimate_s==null?'—':Number(x.kinetic_t95_estimate_s).toFixed(0)+' s')+'</span></div>'+
+      transientNote+
       '<div class="diss-source"><span>'+labEsc(x.solubility_quality||'reference')+'</span> · '+labEsc(src)+(x.solubility_source_url?' · <a href="'+labEsc(x.solubility_source_url)+'" target="_blank" rel="noopener">Source</a>':'')+'</div></div>';
   }).join('');
 }
