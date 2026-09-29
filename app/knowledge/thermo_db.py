@@ -70,3 +70,28 @@ class GHALITDB:
             "ready": not missing,
             "policy": "No solver-critical numeric value enters the TDB without provenance.",
         }
+
+
+def seed_identity_records(tdb: GHALITDB):
+    """Load identity/species records only; no unsupported equilibrium constants."""
+    from app.knowledge.chemical_mapping import MAPPINGS
+    for material in MAPPINGS.values():
+        for comp in material.components:
+            tdb.add_species(SpeciesRecord(
+                species_id=comp.species,
+                formula=comp.species,
+                charge=comp.charge,
+                element_moles=dict(comp.elements),
+                source_id=material.source_id,
+                confidence=material.confidence,
+                notes=f"Mapped from product material {material.material_id}; identity layer only.",
+            ))
+    return tdb
+
+
+def build_seed_tdb() -> GHALITDB:
+    db=GHALITDB()
+    return seed_identity_records(db)
+
+__all__=["PropertyEvidence","SpeciesRecord","EquilibriumPhase","GHALITDB",
+         "seed_identity_records","build_seed_tdb"]
