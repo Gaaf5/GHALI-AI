@@ -173,6 +173,12 @@ def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str
             "estimated_crossing_time_s": pe.get("estimated_crossing_time_s"),
             "kinetic_fraction": pe.get("kinetic_fraction"),
             "screening_t95_s": pe.get("screening_t95_s"),
+            "kinetic_model": pe.get("kinetic_model"),
+            "supersaturation_order": pe.get("supersaturation_order"),
+            "temperature_factor": pe.get("temperature_factor"),
+            "rpm_factor": pe.get("rpm_factor"),
+            "activation_energy_kj_mol": pe.get("activation_energy_kj_mol"),
+            "kinetic_model_source": pe.get("kinetic_model_source"),
             "basis": pe.get("basis"),
             "status": "predicted_kinetic" if pe.get("kinetic") else "predicted_equilibrium",
         })
@@ -262,6 +268,12 @@ def build_chemical_state_machine(timeline: list[dict[str, Any]], chemistry: dict
                 "estimated_crossing_time_s": step.get("estimated_crossing_time_s"),
                 "kinetic_fraction": step.get("kinetic_fraction"),
                 "screening_t95_s": step.get("screening_t95_s"),
+                "kinetic_model": step.get("kinetic_model"),
+                "supersaturation_order": step.get("supersaturation_order"),
+                "temperature_factor": step.get("temperature_factor"),
+                "rpm_factor": step.get("rpm_factor"),
+                "activation_energy_kj_mol": step.get("activation_energy_kj_mol"),
+                "kinetic_model_source": step.get("kinetic_model_source"),
             })
     return states
 

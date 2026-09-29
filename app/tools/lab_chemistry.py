@@ -41,8 +41,14 @@ SOLUBILITY_PRODUCTS={
  ("Ca++","CO3--"):("CaCO3","low","Calcium carbonate precipitation is a compatibility risk."),
 }
 KSP_RULES=[
- {"product":"CaSO4","ions":{"Ca++":1,"SO4--":1},"ksp":4.93e-5,"source":"25 C reference Ksp for CaSO4","product_mw":136.14,"equation":"Ca²⁺ + SO₄²⁻ ⇌ CaSO₄(s)"},
- {"product":"CaHPO4","ions":{"Ca++":1,"HPO4--":1},"ksp":7.0e-7,"source":"25 C reference Ksp for CaHPO4","product_mw":136.06,"equation":"Ca²⁺ + HPO₄²⁻ ⇌ CaHPO₄(s)"},
+ {"product":"CaSO4","ions":{"Ca++":1,"SO4--":1},"ksp":4.93e-5,"source":"25 C reference Ksp for CaSO4","product_mw":136.14,"equation":"Ca²⁺ + SO₄²⁻ ⇌ CaSO₄(s)",
+  "kinetics":{"model":"gypsum_relative_growth_screen","supersaturation_order":2.0,
+              "activation_energy_kj_mol":62.76,"reference_temperature_c":25.0,
+              "source":"CaSO4·2H2O crystal-growth studies: second-order supersaturation dependence and 15.0±0.5 kcal/mol activation energy; relative screening only"}},
+ {"product":"CaHPO4","ions":{"Ca++":1,"HPO4--":1},"ksp":7.0e-7,"source":"25 C reference Ksp for CaHPO4","product_mw":136.06,"equation":"Ca²⁺ + HPO₄²⁻ ⇌ CaHPO₄(s)",
+  "kinetics":{"model":"generic_relative_precipitation_screen","supersaturation_order":1.0,
+              "reference_temperature_c":25.0,
+              "source":"No validated GHALI mineral-specific kinetic constants loaded; generic PHREEQC-style screening only"}},
 ]
 def ions_for(material, mass_g):
     rows=SPECIES.get(material,[])
@@ -345,6 +351,35 @@ def precipitation_equilibrium(dissolved_g, material_data, volume_l, temperature_
             "model":"iterative Ksp precipitation screen with mass-balance removal"}
 
 
+def _kinetic_model_parameters(product, temperature_c, rpm):
+    """Return a relative, source-scoped precipitation kinetic multiplier.
+
+    The multiplier is dimensionless and anchored to the existing engineering
+    t95 screen at 25 C and 300 rpm. It is not an absolute mineral rate constant.
+    """
+    rule=next((r for r in KSP_RULES if r.get("product")==product), {})
+    kin=rule.get("kinetics") or {}
+    order=float(kin.get("supersaturation_order",1.0))
+    tref=float(kin.get("reference_temperature_c",25.0))
+    ea_kj=kin.get("activation_energy_kj_mol")
+    temp_factor=1.0
+    if ea_kj is not None:
+        R=8.314462618e-3  # kJ mol^-1 K^-1
+        tk=max(1.0,float(temperature_c)+273.15)
+        tr=max(1.0,tref+273.15)
+        temp_factor=math.exp(-(float(ea_kj)/R)*(1.0/tk-1.0/tr))
+        temp_factor=max(0.05,min(30.0,temp_factor))
+    rpm_factor=1.0 if rpm<=0 else max(0.35,min(3.0,(float(rpm)/300.0)**0.5))
+    return {
+        "model":kin.get("model","generic_relative_precipitation_screen"),
+        "supersaturation_order":order,
+        "activation_energy_kj_mol":ea_kj,
+        "temperature_factor":temp_factor,
+        "rpm_factor":rpm_factor,
+        "source":kin.get("source"),
+    }
+
+
 def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_volume_l,
                                    temperature_c=25.0, rpm=300.0):
     """Apply a time-resolved precipitation overlay to kinetic dissolution snapshots.
@@ -443,25 +478,25 @@ def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_vo
                                      if val > 1e-12}
 
                 if potential_removed:
-                    effective_dt = max(0.0, t - float(crossing_time or t))
-                    supersaturation = max(0.0, ratio - 1.0)
-                    # Supersaturation accelerates the screening rate, while the
-                    # exact exponent remains deliberately non-material-specific.
-                    rate_multiplier = max(0.0, min(8.0, supersaturation ** 0.5))
-                    fraction = 1.0 - math.exp(
-                        -k95 * max(0.25, rate_multiplier) * effective_dt
-                    )
-                    fraction = max(0.0, min(1.0, fraction))
-
-                    before_current = dict(current)
+                    effective_dt=max(0.0,t-float(crossing_time or t))
+                    kinetic_params=_kinetic_model_parameters(product,temperature_c,rpm)
+                    ss_order=float(kinetic_params.get("supersaturation_order") or 1.0)
+                    # The mineral-specific exponent changes the relative rate only;
+                    # the absolute rate remains anchored to the engineering t95 screen.
+                    rate_multiplier=max(0.0,min(25.0,(max(ratio,1.0)**ss_order-1.0)))
+                    rate_multiplier*=float(kinetic_params.get("temperature_factor") or 1.0)
+                    rate_multiplier*=float(kinetic_params.get("rpm_factor") or 1.0)
+                    fraction=1.0-math.exp(-k95*max(0.05,rate_multiplier)*effective_dt)
+                    fraction=max(0.0,min(1.0,fraction))
+                    before_current=dict(current)
                     for mid, possible in potential_removed.items():
-                        removed = min(possible, possible * fraction)
-                        current[mid] = max(0.0, current[mid] - removed)
-                        cumulative_removed[mid] = cumulative_removed.get(mid, 0.0) + removed
+                        removed=min(possible, possible*fraction)
+                        current[mid]=max(0.0,current[mid]-removed)
+                        cumulative_removed[mid]=cumulative_removed.get(mid,0.0)+removed
 
-                    eq_event = next(
+                    eq_event=next(
                         (x for x in equilibrium.get("events", [])
-                         if str(x.get("product")) == product), {}
+                         if str(x.get("product"))==product), {}
                     )
                     removed_product_mass = float(eq_event.get("precipitated_mass_g") or 0.0) * fraction
                     actual_ions = _ion_molarities(current, material_data, solution_volume_l)
@@ -498,7 +533,13 @@ def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_vo
                         "source": screen.get("source"),
                         "kinetic_fraction": round(fraction, 9),
                         "screening_t95_s": round(screening_t95_s, 6),
-                        "model_scope": "engineering precipitation-kinetics screening; not experimentally calibrated",
+                        "kinetic_model": kinetic_params.get("model"),
+                        "supersaturation_order": round(ss_order, 6),
+                        "temperature_factor": round(float(kinetic_params.get("temperature_factor") or 1.0), 6),
+                        "rpm_factor": round(float(kinetic_params.get("rpm_factor") or 1.0), 6),
+                        "activation_energy_kj_mol": kinetic_params.get("activation_energy_kj_mol"),
+                        "kinetic_model_source": kinetic_params.get("source"),
+                        "model_scope": "mineral-specific relative screening; absolute rate not experimentally calibrated",
                     })
 
         # Persist the adjusted event-time aqueous state and the precipitation ledger.
