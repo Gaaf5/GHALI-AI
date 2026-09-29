@@ -40,8 +40,9 @@ DISSOCIATION = {
 def _species_key(item: str) -> str:
     return item.strip().lower().replace(" ", "_").replace("-", "_")
 
-def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str, Any] | None = None, state_snapshots: dict[Any, Any] | None = None) -> list[dict[str, Any]]:
     chemistry = chemistry or {}
+    state_snapshots = state_snapshots or {}
     timeline = []
     aqueous = ["H₂O"]
     ordered = sorted(additions, key=lambda x: (float(x.get("time_s", 0)), int(x.get("order", 999999))))
@@ -93,6 +94,12 @@ def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str
                 aqueous.append(info["formula"])
                 step["species_after"] = list(aqueous)
                 step["description"] = f"{info['formula']} is represented as an undetailed dissolved species pending validated speciation data."
+        # Attach the deterministic event-time state. Prefer the exact event-time
+        # snapshot; never manufacture an intermediate concentration from the final state.
+        snap = state_snapshots.get(t) or state_snapshots.get(float(t)) or {}
+        step["state_snapshot"] = snap
+        if material in snap:
+            step["material_state"] = dict(snap[material])
         timeline.append(step)
 
     # Attach actual calculated species when available; never invent missing values.

@@ -244,7 +244,11 @@ class Handler(BaseHTTPRequestHandler):
                     "simulation, but NEVER replace its deterministic numbers, invent solubility data, or claim "
                     "thermodynamic certainty. Check only logical consistency: mass balance, sequential addition, "
                     "shared aqueous phase, saturation, precipitation/common-ion warnings, and whether a result is "
-                    "outside the evidence quality. Clearly distinguish source-backed facts, model estimates, and "
+                    "outside the evidence quality. Audit the state_timeline as the primary experiment ledger: verify "
+                    "that later additions do not receive an independent pure-water capacity, and flag any apparent "
+                    "increase/decrease in dissolved mass as a state transition that must be explained by equilibrium "
+                    "repartitioning, kinetics, precipitation, or redissolution. Never infer an event-time species "
+                    "concentration from the final state. Clearly distinguish source-backed facts, model estimates, and "
                     "uncertainty. If the deterministic engine says a later material has zero capacity because the "
                     "shared solution is saturated, explain that this is the simulator's conservative screening rule; "
                     "do not turn it into a universal physical law. Return concise Arabic with sections: الحكم، "
@@ -257,8 +261,12 @@ class Handler(BaseHTTPRequestHandler):
                     'undissolved_g':result.get('undissolved_g'),
                     'dissolution':result.get('dissolution'),
                     'chemistry':result.get('chemistry'),
+                    'state_timeline':result.get('state_timeline'),
+                    'reaction_timeline':result.get('reaction_timeline'),
                     'warnings':result.get('warnings'),
                     'events':result.get('events'),
+                    'quality':result.get('quality'),
+                    'next_experiments':result.get('next_experiments'),
                 },ensure_ascii=False)[:30000]
                 try:
                     review=STATE.brain.llm.chat([{'role':'system','content':prompt},

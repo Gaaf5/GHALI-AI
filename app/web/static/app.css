@@ -9,7 +9,7 @@
 .lab-reaction-strip{margin-bottom:16px;overflow:hidden}
 .reaction-timeline{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:10px 4px 14px;min-height:78px}
 .reaction-step{min-width:150px;max-width:220px;padding:10px 12px;border:1px solid rgba(130,190,220,.22);border-radius:12px;background:rgba(20,35,45,.45);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease,background .2s ease}.reaction-step.active{transform:translateY(-3px);border-color:rgba(126,231,135,.65);background:rgba(35,70,45,.35);box-shadow:0 0 0 1px rgba(126,231,135,.12),0 8px 22px rgba(0,0,0,.18)}
-.reaction-step .rx-time{font-size:11px;color:#8fa1ad}.reaction-step .rx-main{font-size:18px;font-weight:700;margin:3px 0}.reaction-step .rx-sub{font-size:11px;color:#9bb0bc}
+.reaction-step .rx-time{font-size:11px;color:#8fa1ad}.reaction-step .rx-main{font-size:18px;font-weight:700;margin:3px 0}.reaction-step .rx-sub{font-size:11px;color:#9bb0bc}.reaction-step .rx-state{margin-top:5px;font-size:9px;color:#b8f5c4;line-height:1.35}
 .reaction-arrow{font-size:22px;color:#6fb9d6;flex:0 0 auto}
 .reaction-details{border-top:1px solid rgba(130,190,220,.12);padding-top:10px}
 .rx-species{display:flex;flex-wrap:wrap;gap:6px}.rx-species span{padding:5px 9px;border-radius:999px;background:rgba(70,150,190,.10);border:1px solid rgba(110,180,215,.18);font-size:12px}

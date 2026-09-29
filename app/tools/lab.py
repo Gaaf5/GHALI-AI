@@ -340,6 +340,11 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     solution_dissolved={}
     solution_charged={}
     shared_schedule={}
+    kinetic_snapshots={}
+    # Event-time snapshots are kept separately from equilibrium targets. This is
+    # essential: the equilibrium target answers "where the phase wants to go",
+    # while the kinetic snapshot answers "where the experiment has actually reached
+    # by this time". The UI/AI must never collapse those two concepts into one number.
     for eq_t in eq_times:
         active_mass={}
         for x in solid_additions:
@@ -425,6 +430,18 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
             "shared_saturation_load":load,
             "warning":"Stateful shared-solution screening: each addition is equilibrated against the entire existing aqueous phase. Later additions can force precipitation of earlier dissolved material and do not receive an independent pure-water capacity. This is an engineering heuristic, not a full activity-coefficient/speciation model."
         }
+        # Equilibrium snapshot at this event time. It is intentionally stored with
+        # explicit labels so downstream UI/AI can distinguish equilibrium target
+        # from kinetic progress.
+        kinetic_snapshots.setdefault(eq_t,{})
+        for mid, st in materials.items():
+            kinetic_snapshots[eq_t][mid]={
+                "event_equilibrium_target_g":round(float(st.get("effective_capacity_g") or 0.0),6),
+                "charged_g":round(float(active_mass.get(mid,0.0)),6),
+                "equilibrium_undissolved_g":round(float(st.get("undissolved_g") or 0.0),6),
+                "shared_saturation_factor":st.get("shared_saturation_factor"),
+                "shared_saturation_load":st.get("shared_saturation_load"),
+            }
     shared_eq=shared_schedule.get(duration,{"materials":{}})
     if shared_eq:
         warnings.append("Shared-solvent occupancy is active: dissolved materials compete for the same aqueous phase; individual pure-water solubility ceilings are not added independently.")
@@ -581,6 +598,13 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                     dmass=target_capacity
                 dmass=max(0.0,min(mass,dmass))
                 peak_dissolved=max(peak_dissolved,dmass)
+                snap=kinetic_snapshots.setdefault(interval_end,{})
+                snap.setdefault(mid,{})
+                snap[mid]["kinetic_dissolved_g"]=round(float(dmass),6)
+                snap[mid]["kinetic_undissolved_g"]=round(max(0.0,mass-dmass),6)
+                snap[mid]["pre_event_equilibrium_target_g"]=round(float(target_capacity),6)
+                snap[mid]["kinetic_state"]="transient"
+                snap[mid]["time_s"]=float(interval_end)
 
                 # A 95% crossing only counts if the final equilibrium can still
                 # sustain 95% after all later additions have arrived.
@@ -699,7 +723,11 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "chemistry":chemistry,
         "warnings":warnings,
     }, bool(discover_phreeqc().get("available")))
-    reaction_timeline=build_reaction_timeline(additions, chemistry)
+    reaction_timeline=build_reaction_timeline(additions, chemistry, kinetic_snapshots)
+    # Make the state ledger explicit in the API. This is the source of truth for
+    # the visual timeline and for the AI review/planner; it prevents the frontend
+    # from reconstructing chemistry from presentation-only fields.
+    state_timeline={str(t):{mid:dict(state) for mid,state in states.items()} for t,states in sorted(kinetic_snapshots.items(), key=lambda x: float(x[0]))}
     return {
         "status":"SIMULATED","confidence":confidence,"model":"GHALI Virtual Lab v3",
         "conditions":{"temperature_c":temp,"rpm":rpm,"duration_s":duration,"working_volume_l":volume,
@@ -715,6 +743,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "mixing_uniformity_pct":round(uniformity,3),
         "chemistry":chemistry,
         "reaction_timeline":reaction_timeline,
+        "state_timeline":state_timeline,
         "warnings":warnings,"events":events,
         "input_additions":[dict(a) for a in additions],
         "quality":quality,

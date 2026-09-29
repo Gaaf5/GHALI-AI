@@ -17,6 +17,23 @@ def test_high_agitation_and_time_can_reach_dissolution_capacity():
                 "additions":[{"material":"water","mass_g":10000},{"material":"sop","mass_g":1000}]})
     assert r["dissolved_g"]["sop"]>999
     assert sum(r["undissolved_g"].values())<1e-6
+def test_later_addition_uses_shared_solution_not_fresh_water_capacity():
+    r=simulate({"vessel":{"working_volume_l":10},"temperature_c":20,"rpm":300,"duration_s":1200,
+                "additions":[{"material":"water","mass_g":1000,"time_s":0},
+                            {"material":"map","mass_g":374,"time_s":0},
+                            {"material":"sop","mass_g":100,"time_s":600}]})
+    # MAP saturates the shared aqueous phase first; adding SOP later changes the
+    # common equilibrium and forces MAP to re-precipitate. SOP does not receive a
+    # fresh pure-water capacity.
+    assert r["dissolved_g"]["map"] < 374
+    assert r["dissolved_g"]["sop"] < 100
+    assert r["dissolution"]["map"]["reprecipitated_g"] > 0
+    assert r["dissolution"]["sop"]["final_mixed_equilibrium_capacity_g"] < 100
+    assert "600.0" in r["state_timeline"]
+    assert r["state_timeline"]["600.0"]["map"]["event_equilibrium_target_g"] < 374
+    assert r["state_timeline"]["600.0"]["map"]["pre_event_equilibrium_target_g"] >= 374
+
+
 def test_event_time_delays_dissolution():
     fast=simulate({"vessel":{"working_volume_l":10},"temperature_c":20,"rpm":300,"duration_s":120,
                    "additions":[{"material":"water","mass_g":1000,"time_s":0},{"material":"sop","mass_g":100,"time_s":0}]})

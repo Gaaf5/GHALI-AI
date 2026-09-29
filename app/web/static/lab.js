@@ -116,7 +116,12 @@ function renderReactionTimeline(result){
     const next=additions[i+1];
     const action=labEsc(x.action||('+ '+label));
     const eq=x.dissociation_equation?'<div class="rx-reaction">'+labEsc(x.dissociation_equation)+'</div>':'';
-    return '<div class="reaction-step" data-reaction-index="'+i+'"><div class="rx-time">t = '+formatClock(x.time_s)+'</div><div class="rx-main">'+action+'</div><div class="rx-sub"><b>'+formula+'</b> · '+labEsc(x.description||'Chemical addition')+'</div>'+eq+'</div>'+(next?'<div class="reaction-arrow">→</div>':'');
+    const st=x.material_state||{};
+    const stateLine=(st.kinetic_dissolved_g!==undefined?'<div class="rx-state">actual dissolved ≈ '+Number(st.kinetic_dissolved_g).toFixed(2)+' g</div>':'')+
+      (st.event_equilibrium_target_g!==undefined?'<div class="rx-state">after-event equilibrium target ≈ '+Number(st.event_equilibrium_target_g).toFixed(2)+' g</div>':'')+
+      (st.pre_event_equilibrium_target_g!==undefined?'<div class="rx-state">before-event equilibrium target ≈ '+Number(st.pre_event_equilibrium_target_g).toFixed(2)+' g</div>':'')+
+      (st.equilibrium_undissolved_g!==undefined?'<div class="rx-state">equilibrium solid remaining ≈ '+Number(st.equilibrium_undissolved_g).toFixed(2)+' g</div>':'');
+    return '<div class="reaction-step" data-reaction-index="'+i+'"><div class="rx-time">t = '+formatClock(x.time_s)+'</div><div class="rx-main">'+action+'</div><div class="rx-sub"><b>'+formula+'</b> · '+labEsc(x.description||'Chemical addition')+'</div>'+stateLine+eq+'</div>'+(next?'<div class="reaction-arrow">→</div>':'');
   }).join('');
   const last=additions[additions.length-1]||steps[steps.length-1];
   const species=last?.species_after||[];
