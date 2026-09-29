@@ -18,6 +18,7 @@ from app.knowledge.chemical_mapping import get_mapping, mapped_materials
 from app.knowledge.thermo_db import build_seed_tdb
 from app.tools.phreeqc_generator import build_input as build_phreeqc_input
 from app.tools.phreeqc_adapter import discover_phreeqc, run_phreeqc
+from app.tools.model_selector import select_activity_model, water_analysis_to_molal
 from app.web.auth import AuthManager
 
 ROOT=Path(__file__).resolve().parent; STATIC=ROOT/'static'; STATE=None
@@ -285,6 +286,16 @@ class Handler(BaseHTTPRequestHandler):
                 u=self.require('chat')
                 if not u:return
                 return self.send_data(200,jb({'materials':mapped_materials(), 'tdb_audit':build_seed_tdb().audit()}))
+            if path=='/api/lab/model-selection':
+                u=self.require('chat')
+                if not u:return
+                d0=d.get('water_analysis') or {}
+                molal=water_analysis_to_molal(d0,float(d.get('water_kg',1.0)))
+                # Charge-weighted ionic-strength estimate from the explicit ions we know.
+                charges={'Ca':2,'Mg':2,'Na':1,'K':1,'NH4':1,'Cl':-1,'SO4':-2,'HCO3':-1,'CO3':-2,'NO3':-1,'F':-1,'PO4':-3,'Fe':2,'Zn':2}
+                I=0.0
+                for k,m in molal.items(): I += 0.5*m*(charges.get(k,0)**2)
+                return self.send_data(200,jb(select_activity_model(I,bool(discover_phreeqc().get('available')))))
             if path=='/api/lab/phreeqc':
                 u=self.require('chat')
                 if not u:return
