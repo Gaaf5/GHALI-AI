@@ -7,7 +7,7 @@ from app.knowledge.evidence import evidence_for
 from app.tools.model_selector import select_activity_model
 from app.tools.lab_quality import assess_simulation, next_experiments
 from app.tools.phreeqc_adapter import discover_phreeqc
-from app.tools.lab_reactions import build_reaction_timeline
+from app.tools.lab_reactions import build_reaction_timeline, build_chemical_state_machine
 
 # Digital-lab data are engineering approximations, not physical measurements.
 # Every result carries a confidence class and model provenance.
@@ -724,6 +724,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "warnings":warnings,
     }, bool(discover_phreeqc().get("available")))
     reaction_timeline=build_reaction_timeline(additions, chemistry, kinetic_snapshots)
+    chemical_state_machine=build_chemical_state_machine(reaction_timeline, chemistry)
     # Make the state ledger explicit in the API. This is the source of truth for
     # the visual timeline and for the AI review/planner; it prevents the frontend
     # from reconstructing chemistry from presentation-only fields.
@@ -743,6 +744,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "mixing_uniformity_pct":round(uniformity,3),
         "chemistry":chemistry,
         "reaction_timeline":reaction_timeline,
+        "chemical_state_machine":chemical_state_machine,
         "state_timeline":state_timeline,
         "warnings":warnings,"events":events,
         "input_additions":[dict(a) for a in additions],

@@ -52,3 +52,23 @@ def test_calcium_sulfate_compatibility_risk_is_flagged():
     assert any("CaSO4"==x["product"] for x in risks)
 def test_ionic_strength_calculation():
     assert abs(ionic_strength([{"moles_per_l":1,"charge":1},{"moles_per_l":1,"charge":-1}])-1.0)<1e-9
+
+def test_chemical_state_machine_preserves_scopes_and_equilibrium_shift():
+    r=simulate({"vessel":{"working_volume_l":10},"temperature_c":20,"rpm":300,"duration_s":1200,
+                "additions":[{"material":"water","mass_g":1000,"time_s":0},
+                            {"material":"map","mass_g":374,"time_s":0},
+                            {"material":"sop","mass_g":100,"time_s":600}]})
+    machine=r["chemical_state_machine"]
+    stages=[x["stage"] for x in machine]
+    assert "input" in stages
+    assert "dissolution" in stages
+    assert "dissociation" in stages
+    assert "acid_base_network" in stages
+    assert "equilibrium_repartition" in stages
+    shifts=[x for x in machine if x["stage"]=="equilibrium_repartition" and x["material"]=="map"]
+    assert shifts
+    assert shifts[0]["status"]=="re-precipitation"
+    assert shifts[0]["before_target_g"] >= 374
+    assert shifts[0]["after_target_g"] < 374
+    spec=[x for x in machine if x["stage"]=="speciation"]
+    assert all("final aqueous state" in x["scope"] for x in spec)

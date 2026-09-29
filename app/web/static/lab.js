@@ -139,6 +139,20 @@ function renderReactionTimeline(result){
     (precip.length?precip.map(x=>'<div class="rx-reaction"><b>Precipitation:</b> '+labEsc(x.display)+'</div>').join(''):'');
   $('#labReactionState').textContent=(result.quality?.confidence||'SCREENING').toUpperCase();
 }
+function renderChemicalStateMachine(result){
+  const box=$('#labChemicalStateMachine');
+  const states=result.chemical_state_machine||[];
+  if(!states.length){box.innerHTML='<div class="empty">No scoped chemical states yet.</div>';return;}
+  const stageLabel={input:'INPUT',dissolution:'DISSOLUTION',dissociation:'DISSOCIATION',acid_base_network:'ACID/BASE',speciation:'SPECIATION',equilibrium_repartition:'EQUILIBRIUM SHIFT',precipitation:'PRECIPITATION'};
+  box.innerHTML=states.map(s=>{
+    const detail=s.stage==='dissolution'?(s.dissolved_g!=null?'dissolved '+Number(s.dissolved_g).toFixed(2)+' g':s.target_dissolved_g!=null?'target '+Number(s.target_dissolved_g).toFixed(2)+' g':''):
+      s.stage==='equilibrium_repartition'?'target '+Number(s.before_target_g).toFixed(2)+' → '+Number(s.after_target_g).toFixed(2)+' g':
+      s.stage==='dissociation'?(s.equation||'principal ions: '+(s.species||[]).join(', ')):
+      s.stage==='speciation'?'final-state calculation: '+Object.keys(s.species_mol_L||{}).length+' species':
+      s.stage==='acid_base_network'?(s.equilibria||[]).length+' candidate equilibria':s.description||s.reaction||'';
+    return '<div class="lab-event"><b>t='+formatClock(s.time_s)+'</b><span><strong>'+labEsc(stageLabel[s.stage]||s.stage)+'</strong> · '+labEsc(s.label||s.material)+'<br><small>'+labEsc(detail)+'</small></span><em>'+labEsc(s.scope||'')+'</em></div>';
+  }).join('');
+}
 function renderStateLedger(result){
   const box=$('#labStateLedger');
   const timeline=result.state_timeline||{};
@@ -218,7 +232,7 @@ function renderResult(d){
     (evidenceRows?'<h4>Evidence / References</h4>'+evidenceRows:'')+
     qPanel+warns+
     '<div class="lab-model">'+labEsc(d.note)+'</div>';
-  renderDissolution(d);renderEvents(d);renderReactionTimeline(d);renderStateLedger(d);
+  renderDissolution(d);renderEvents(d);renderReactionTimeline(d);renderStateLedger(d);renderChemicalStateMachine(d);
 }
 function animateExperiment(result){
   if(labAnimation)cancelAnimationFrame(labAnimation);

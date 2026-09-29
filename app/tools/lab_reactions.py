@@ -164,4 +164,80 @@ def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str
             })
     return sorted(timeline, key=lambda x: (x["time_s"], x["order"], x["event"]))
 
-__all__ = ["build_reaction_timeline"]
+def build_chemical_state_machine(timeline: list[dict[str, Any]], chemistry: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Build an explicit chemistry-state ledger from deterministic timeline data.
+
+    The machine never upgrades a display heuristic into a chemical reaction.
+    Each stage carries a scope so event-time state is not confused with final-state
+    speciation or predicted precipitation.
+    """
+    chemistry = chemistry or {}
+    states: list[dict[str, Any]] = []
+    for step in timeline:
+        event = step.get("event")
+        t = float(step.get("time_s", 0))
+        material = str(step.get("material", ""))
+        label = str(step.get("label", material))
+        if event == "addition":
+            states.append({
+                "time_s": t, "stage": "input", "material": material,
+                "label": label, "scope": "event-time",
+                "status": "observed_input", "description": f"{label} enters the vessel."
+            })
+            ms = step.get("material_state") or {}
+            if material != "water":
+                if ms.get("kinetic_dissolved_g") is not None:
+                    states.append({
+                        "time_s": t, "stage": "dissolution", "material": material,
+                        "label": label, "scope": "event-time kinetic snapshot",
+                        "status": "deterministic", "dissolved_g": float(ms["kinetic_dissolved_g"]),
+                        "undissolved_g": (float(ms["charged_g"]) - float(ms["kinetic_dissolved_g"])) if ms.get("charged_g") is not None else None,
+                    })
+                elif ms.get("event_equilibrium_target_g") is not None:
+                    states.append({
+                        "time_s": t, "stage": "dissolution", "material": material,
+                        "label": label, "scope": "event-time equilibrium target; not measured kinetic state",
+                        "status": "equilibrium_target", "target_dissolved_g": float(ms["event_equilibrium_target_g"]),
+                        "undissolved_g": (float(ms["charged_g"]) - float(ms["event_equilibrium_target_g"])) if ms.get("charged_g") is not None else None,
+                    })
+            diss = step.get("dissociation") or []
+            if diss:
+                states.append({
+                    "time_s": t, "stage": "dissociation", "material": material,
+                    "label": label, "scope": "chemical representation",
+                    "status": "principal_ions", "species": list(diss),
+                    "equation": step.get("dissociation_equation")
+                })
+            networks = step.get("acid_base_network") or []
+            if networks:
+                states.append({
+                    "time_s": t, "stage": "acid_base_network", "material": material,
+                    "label": label, "scope": "candidate equilibrium network",
+                    "status": "not_event_time_speciation", "equilibria": list(networks)
+                })
+            if material != "water" and step.get("final_calculated_species_mol_L"):
+                states.append({
+                    "time_s": t, "stage": "speciation", "material": material,
+                    "label": label, "scope": "final aqueous state; not event-time snapshot",
+                    "status": "calculated", "species_mol_L": dict(step["final_calculated_species_mol_L"])
+                })
+        elif event == "equilibrium_shift":
+            ms = step.get("material_state") or {}
+            states.append({
+                "time_s": t, "stage": "equilibrium_repartition", "material": material,
+                "label": label, "scope": "event-time deterministic screening",
+                "status": "re-precipitation" if "re-precipitation" in str(step.get("action")) else "redissolution",
+                "before_target_g": ms.get("pre_event_equilibrium_target_g"),
+                "after_target_g": ms.get("event_equilibrium_target_g"),
+                "shift_g": step.get("mass_g"),
+                "equation": "dissolved ⇌ solid"
+            })
+        elif event == "precipitation":
+            states.append({
+                "time_s": t, "stage": "precipitation", "material": material,
+                "label": label, "scope": "predicted by deterministic chemistry screen",
+                "status": "predicted", "reaction": (step.get("reactions") or [None])[0]
+            })
+    return states
+
+__all__ = ["build_reaction_timeline", "build_chemical_state_machine"]
