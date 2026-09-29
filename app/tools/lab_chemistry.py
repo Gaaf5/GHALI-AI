@@ -344,7 +344,221 @@ def precipitation_equilibrium(dissolved_g, material_data, volume_l, temperature_
     return {"dissolved_g":current,"events":events,
             "model":"iterative Ksp precipitation screen with mass-balance removal"}
 
-def analyze(experiment, dissolved_g, material_data=None, solution_volume_l=None):
+
+def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_volume_l,
+                                   temperature_c=25.0, rpm=300.0):
+    """Apply a time-resolved precipitation overlay to kinetic dissolution snapshots.
+
+    This is an engineering screening layer, not a validated crystal-growth model.
+    It detects the first sampled crossing of Q/Ksp > 1, estimates the crossing time
+    between snapshots, then relaxes toward the Ksp-limited state instead of removing
+    the full equilibrium amount instantaneously. The overlay keeps a cumulative
+    precipitation ledger and writes the adjusted dissolved state back to snapshots.
+
+    The rate is intentionally expressed as a tunable screening parameter. Literature
+    shows that induction and growth depend strongly on supersaturation, temperature,
+    surfaces/seeding, vessel material, additives, and mixing; therefore no universal
+    precipitation rate constant is invented here.
+    """
+    snapshots = {
+        float(t): {str(mid): dict(state) for mid, state in (rows or {}).items()}
+        for t, rows in (kinetic_snapshots or {}).items()
+    }
+    times = sorted(
+        t for t, rows in snapshots.items()
+        if any(
+            isinstance(s, dict)
+            and (
+                s.get("kinetic_dissolved_g") is not None
+                or s.get("event_equilibrium_target_g") is not None
+            )
+            for s in rows.values()
+        )
+    )
+    if not times:
+        return {"snapshots": snapshots, "events": [], "cumulative_precipitated_g": {},
+                "final_dissolved_g": {}, "model": "no kinetic snapshots available"}
+
+    cumulative_removed = {}
+    previous_ratios = {}
+    previous_time = None
+    events = []
+
+    # A deliberately conservative generic screening t95. It is NOT a material
+    # property. Stirring modifies the mixing/mass-transfer environment only.
+    rpm_factor = 1.0 if rpm <= 0 else max(0.35, min(3.0, (float(rpm) / 300.0) ** 0.5))
+    screening_t95_s = 300.0 / rpm_factor
+    k95 = math.log(20.0) / max(screening_t95_s, 1e-9)
+
+    for t in times:
+        rows = snapshots[t]
+        baseline = {}
+        for mid, state in rows.items():
+            if not isinstance(state, dict):
+                continue
+            if state.get("kinetic_dissolved_g") is not None:
+                baseline[mid] = max(0.0, float(state.get("kinetic_dissolved_g", 0.0)))
+            elif state.get("event_equilibrium_target_g") is not None:
+                # A newly added solid has zero dissolved mass at the instant it
+                # enters the vessel unless a measured kinetic snapshot says otherwise.
+                baseline[mid] = 0.0
+        current = {
+            mid: max(0.0, mass - cumulative_removed.get(mid, 0.0))
+            for mid, mass in baseline.items()
+        }
+
+        ions = _ion_molarities(current, material_data, solution_volume_l)
+        I = ionic_strength(ions)
+        gammas = {n: davies_gamma(r["charge"], I, temperature_c) for n, r in ions.items()}
+        screens = ksp_screen(ions, gammas)
+        dt = max(0.0, 0.0 if previous_time is None else t - previous_time)
+
+        for screen in screens:
+            product = str(screen["product"])
+            ratio = float(screen.get("Q_over_Ksp", 0.0))
+            prior = previous_ratios.get(product)
+            crossing_time = None
+            if ratio > 1.0:
+                if prior is not None and prior <= 1.0 and dt > 0:
+                    # Linear interpolation is only an estimate of the first
+                    # crossing between two sampled states.
+                    frac = (1.0 - prior) / max(ratio - prior, 1e-12)
+                    frac = max(0.0, min(1.0, frac))
+                    crossing_time = previous_time + frac * dt
+                elif prior is None:
+                    crossing_time = t
+                else:
+                    crossing_time = previous_time
+
+                equilibrium = precipitation_equilibrium(
+                    current, material_data, solution_volume_l, temperature_c
+                )
+                target = equilibrium.get("dissolved_g", current)
+                potential_removed = {
+                    mid: max(0.0, float(current.get(mid, 0.0)) -
+                            float(target.get(mid, current.get(mid, 0.0))))
+                    for mid in current
+                }
+                potential_removed = {mid: val for mid, val in potential_removed.items()
+                                     if val > 1e-12}
+
+                if potential_removed:
+                    effective_dt = max(0.0, t - float(crossing_time or t))
+                    supersaturation = max(0.0, ratio - 1.0)
+                    # Supersaturation accelerates the screening rate, while the
+                    # exact exponent remains deliberately non-material-specific.
+                    rate_multiplier = max(0.0, min(8.0, supersaturation ** 0.5))
+                    fraction = 1.0 - math.exp(
+                        -k95 * max(0.25, rate_multiplier) * effective_dt
+                    )
+                    fraction = max(0.0, min(1.0, fraction))
+
+                    before_current = dict(current)
+                    for mid, possible in potential_removed.items():
+                        removed = min(possible, possible * fraction)
+                        current[mid] = max(0.0, current[mid] - removed)
+                        cumulative_removed[mid] = cumulative_removed.get(mid, 0.0) + removed
+
+                    eq_event = next(
+                        (x for x in equilibrium.get("events", [])
+                         if str(x.get("product")) == product), {}
+                    )
+                    removed_product_mass = float(eq_event.get("precipitated_mass_g") or 0.0) * fraction
+                    actual_ions = _ion_molarities(current, material_data, solution_volume_l)
+                    actual_I = ionic_strength(actual_ions)
+                    actual_gammas = {
+                        n: davies_gamma(r["charge"], actual_I, temperature_c)
+                        for n, r in actual_ions.items()
+                    }
+                    after_ratio = next(
+                        (float(x.get("Q_over_Ksp", 0.0))
+                         for x in ksp_screen(actual_ions, actual_gammas)
+                         if str(x.get("product")) == product),
+                        None
+                    )
+                    events.append({
+                        "time_s": float(t),
+                        "estimated_crossing_time_s": round(float(crossing_time), 6)
+                            if crossing_time is not None else None,
+                        "event": "precipitation_kinetic",
+                        "material": product,
+                        "mass_g": round(removed_product_mass, 9),
+                        "precipitated_mass_g": round(removed_product_mass, 9),
+                        "precipitated_mol": (
+                            removed_product_mass / float(eq_event.get("precipitated_mass_g") or 1.0)
+                            * float(eq_event.get("precipitated_mol") or 0.0)
+                            if eq_event.get("precipitated_mass_g") else None
+                        ),
+                        "Q_over_Ksp_before": round(ratio, 9),
+                        "Q_over_Ksp_after": round(after_ratio, 9) if after_ratio is not None else None,
+                        "ksp": screen.get("Ksp"),
+                        "basis": screen.get("basis"),
+                        "equation": KSP_RULES[[r["product"] for r in KSP_RULES].index(product)].get("equation")
+                            if product in [r["product"] for r in KSP_RULES] else None,
+                        "source": screen.get("source"),
+                        "kinetic_fraction": round(fraction, 9),
+                        "screening_t95_s": round(screening_t95_s, 6),
+                        "model_scope": "engineering precipitation-kinetics screening; not experimentally calibrated",
+                    })
+
+        # Persist the adjusted event-time aqueous state and the precipitation ledger.
+        for mid, state in rows.items():
+            if not isinstance(state, dict):
+                continue
+            if mid in current:
+                base = float(state.get("kinetic_dissolved_g", 0.0))
+                adjusted = float(current[mid])
+                state["pre_precipitation_kinetic_dissolved_g"] = round(base, 6)
+                state["kinetic_dissolved_g"] = round(adjusted, 6)
+                state["kinetic_undissolved_g"] = round(
+                    max(0.0, float(state.get("charged_g", 0.0)) - adjusted), 6
+                )
+                state["precipitated_from_material_g"] = round(
+                    max(0.0, base - adjusted), 6
+                )
+        if events:
+            rows["__precipitation_ledger__"] = {
+                "events_at_time": [dict(e) for e in events if float(e["time_s"]) == float(t)],
+                "cumulative_precipitated_material_g": {
+                    k: round(v, 9) for k, v in cumulative_removed.items()
+                },
+            }
+
+        # Recompute the ratio from the adjusted state for the next crossing test.
+        adjusted_ions = _ion_molarities(current, material_data, solution_volume_l)
+        adjusted_I = ionic_strength(adjusted_ions)
+        adjusted_gammas = {
+            n: davies_gamma(r["charge"], adjusted_I, temperature_c)
+            for n, r in adjusted_ions.items()
+        }
+        for s in ksp_screen(adjusted_ions, adjusted_gammas):
+            previous_ratios[str(s["product"])] = float(s.get("Q_over_Ksp", 0.0))
+        previous_time = t
+
+    final_dissolved = {}
+    if times:
+        last = snapshots[times[-1]]
+        final_dissolved = {
+            mid: float(state.get("kinetic_dissolved_g", 0.0))
+            for mid, state in last.items()
+            if isinstance(state, dict) and state.get("kinetic_dissolved_g") is not None
+        }
+    return {
+        "snapshots": snapshots,
+        "events": events,
+        "cumulative_precipitated_g": {k: round(v, 9) for k, v in cumulative_removed.items()},
+        "final_dissolved_g": final_dissolved,
+        "model": "time-resolved Q/Ksp crossing + kinetic relaxation to Ksp-limited state",
+        "screening_parameters": {
+            "screening_t95_s": round(screening_t95_s, 6),
+            "rpm_factor": round(rpm_factor, 6),
+            "basis": "supersaturation-dependent engineering screening; not a validated mineral-specific rate law",
+        },
+    }
+
+
+def analyze(experiment, dissolved_g, material_data=None, solution_volume_l=None,
+           apply_precipitation=True):
     material_data=material_data or {}
     volume=max(float(solution_volume_l or experiment.get("working_volume_l",1)),1e-9)
     temp=float(experiment.get("temperature_c",25))
@@ -373,10 +587,12 @@ def analyze(experiment, dissolved_g, material_data=None, solution_volume_l=None)
 
     precip=precipitation_equilibrium(dissolved_g,material_data,volume,temp)
     precipitated=precip.get("events",[])
-    if precipitated:
+    if precipitated and apply_precipitation:
         risks=compatibility(precip["dissolved_g"])
         multi=multicomponent_screen(experiment,precip["dissolved_g"],material_data,volume)
         messages=["Ksp precipitation was applied with mass-balance removal to the dissolved phase."]
+    elif precipitated:
+        messages=["Ksp precipitation is thermodynamically indicated, but the time-resolved kinetic state was preserved; the equilibrium result is reported separately."]
     else:
         messages=[]
     messages += [x["message"] for x in risks]+multi["flags"]
@@ -384,12 +600,18 @@ def analyze(experiment, dissolved_g, material_data=None, solution_volume_l=None)
         if abs(float(ph.get("charge_balance_residual_mol_L",0)))>1e-5:
             messages.append("pH charge-balance residual is above the screening tolerance; composition/speciation data are incomplete.")
     return {"compatibility_risks":risks,
-            "precipitation_screen":"PRECIPITATION_APPLIED" if precipitated else ("RISK_DETECTED" if risks else "NO_RULE_TRIGGERED"),
+            "precipitation_screen":(
+                "PRECIPITATION_APPLIED" if precipitated and apply_precipitation
+                else "KINETIC_STATE_SUPERSATURATED" if precipitated
+                else ("RISK_DETECTED" if risks else "NO_RULE_TRIGGERED")
+            ),
             "multicomponent":multi,
             "ph_estimate":ph,
             "ionic_strength":{"value_mol_L":multi["ionic_strength_mol_L"],"status":"screening"},
+            "actual_dissolved_g":{k:float(v) for k,v in dissolved_g.items()},
+            "equilibrium_dissolved_g":{k:float(v) for k,v in precip.get("dissolved_g",dissolved_g).items()},
             "precipitation_equilibrium":precip,
             "warnings":messages,
             "note":"Chemistry layer now performs analytical mass-balance speciation, low-ionic-strength activity screening, common-ion detection and iterative Ksp precipitation with material mass removal. Davies is not used as a high-ionic-strength model; concentrated fertilizer solutions require validated SIT/Pitzer/product interaction data."}
 
-__all__=["analyze","compatibility","ions_for","ionic_strength","davies_gamma","multicomponent_screen"]
+__all__=["analyze","compatibility","ions_for","ionic_strength","davies_gamma","multicomponent_screen","precipitation_equilibrium","precipitation_kinetic_timeline"]

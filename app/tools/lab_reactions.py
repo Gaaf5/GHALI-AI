@@ -146,27 +146,36 @@ def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str
                 step["calculation_scope"] = "final aqueous state; not an event-time snapshot"
     precip = chemistry.get("precipitation_equilibrium") or {}
     events = precip.get("events") if isinstance(precip, dict) else []
+    kinetic_events = precip.get("kinetic_events") if isinstance(precip, dict) else []
+    all_precip_events = []
     if isinstance(events, list):
-        for pe in events:
-            product = str(pe.get("product", ""))
-            timeline.append({
-                "time_s": float(pe.get("time_s", 0)),
-                "order": 999999,
-                "event": "precipitation",
-                "material": product,
-                "display": product,
-                "mass_g": None,
-                "phase_before": [],
-                "dissociation": [],
-                "species_after": [],
-                "reactions": [f"Predicted precipitation: {product}"],
-                "equation": pe.get("equation"),
-                "precipitated_mol": pe.get("precipitated_mol"),
-                "precipitated_mass_g": pe.get("precipitated_mass_g"),
-                "Q_over_Ksp_before": pe.get("Q_over_Ksp_before"),
-                "basis": pe.get("basis"),
-                "status": "predicted",
-            })
+        all_precip_events.extend((dict(pe, kinetic=False) for pe in events))
+    if isinstance(kinetic_events, list):
+        all_precip_events.extend((dict(pe, kinetic=True) for pe in kinetic_events))
+    for pe in all_precip_events:
+        product = str(pe.get("product") or pe.get("material") or "")
+        timeline.append({
+            "time_s": float(pe.get("time_s", 0)),
+            "order": 999999 if not pe.get("kinetic") else 999998,
+            "event": "precipitation",
+            "material": product,
+            "display": product,
+            "mass_g": pe.get("mass_g"),
+            "phase_before": [],
+            "dissociation": [],
+            "species_after": [],
+            "reactions": [f"Predicted precipitation: {product}"],
+            "equation": pe.get("equation"),
+            "precipitated_mol": pe.get("precipitated_mol"),
+            "precipitated_mass_g": pe.get("precipitated_mass_g", pe.get("mass_g")),
+            "Q_over_Ksp_before": pe.get("Q_over_Ksp_before"),
+            "Q_over_Ksp_after": pe.get("Q_over_Ksp_after"),
+            "estimated_crossing_time_s": pe.get("estimated_crossing_time_s"),
+            "kinetic_fraction": pe.get("kinetic_fraction"),
+            "screening_t95_s": pe.get("screening_t95_s"),
+            "basis": pe.get("basis"),
+            "status": "predicted_kinetic" if pe.get("kinetic") else "predicted_equilibrium",
+        })
     return sorted(timeline, key=lambda x: (x["time_s"], x["order"], x["event"]))
 
 def build_chemical_state_machine(timeline: list[dict[str, Any]], chemistry: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -238,14 +247,21 @@ def build_chemical_state_machine(timeline: list[dict[str, Any]], chemistry: dict
                 "equation": "dissolved ⇌ solid"
             })
         elif event == "precipitation":
+            kinetic = str(step.get("status", "")).startswith("predicted_kinetic")
             states.append({
                 "time_s": t, "stage": "precipitation", "material": material,
-                "label": label, "scope": "predicted by deterministic chemistry screen",
-                "status": "predicted", "reaction": (step.get("reactions") or [None])[0],
+                "label": label,
+                "scope": "time-resolved engineering screening" if kinetic else "predicted by deterministic chemistry screen",
+                "status": "predicted_kinetic" if kinetic else "predicted_equilibrium",
+                "reaction": (step.get("reactions") or [None])[0],
                 "equation": step.get("equation"),
                 "precipitated_mol": step.get("precipitated_mol"),
                 "precipitated_mass_g": step.get("precipitated_mass_g"),
                 "Q_over_Ksp_before": step.get("Q_over_Ksp_before"),
+                "Q_over_Ksp_after": step.get("Q_over_Ksp_after"),
+                "estimated_crossing_time_s": step.get("estimated_crossing_time_s"),
+                "kinetic_fraction": step.get("kinetic_fraction"),
+                "screening_t95_s": step.get("screening_t95_s"),
             })
     return states
 

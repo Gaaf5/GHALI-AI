@@ -8,6 +8,7 @@ from app.tools.model_selector import select_activity_model
 from app.tools.lab_quality import assess_simulation, next_experiments
 from app.tools.phreeqc_adapter import discover_phreeqc
 from app.tools.lab_reactions import build_reaction_timeline, build_chemical_state_machine
+from app.tools.lab_chemistry import precipitation_kinetic_timeline
 
 # Digital-lab data are engineering approximations, not physical measurements.
 # Every result carries a confidence class and model provenance.
@@ -589,22 +590,27 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                 interval_loading=min(1.0,mass/max(target_capacity,1e-9))
                 interval_drive=min(6.0,1.0/math.sqrt(max(interval_loading,1e-9)))
                 k_interval=base_rate*size_factor*rpm_factor*temp_factor*interval_drive
-                dmass += (target_capacity-dmass)*(1-math.exp(-k_interval*dt_total))
-                # After ~5 time constants the engineering kinetic model treats the
-                # target as reached; retaining a tiny exponential tail would create
-                # artificial milligram residues in long, fully soluble runs.
+                # Resolve the kinetic interval into substeps so the precipitation
+                # layer can see the actual evolution of Q/Ksp instead of only the
+                # interval endpoint. For a first-order relaxation this is numerically
+                # equivalent to the endpoint update, but it exposes the trajectory.
+                substeps=max(1,min(60,int(math.ceil(dt_total/5.0))))
+                dt_step=dt_total/substeps
                 tau=1.0/max(k_interval,1e-12)
-                if target_capacity >= mass and dt_total >= 5.0*tau:
-                    dmass=target_capacity
-                dmass=max(0.0,min(mass,dmass))
-                peak_dissolved=max(peak_dissolved,dmass)
-                snap=kinetic_snapshots.setdefault(interval_end,{})
-                snap.setdefault(mid,{})
-                snap[mid]["kinetic_dissolved_g"]=round(float(dmass),6)
-                snap[mid]["kinetic_undissolved_g"]=round(max(0.0,mass-dmass),6)
-                snap[mid]["pre_event_equilibrium_target_g"]=round(float(target_capacity),6)
-                snap[mid]["kinetic_state"]="transient"
-                snap[mid]["time_s"]=float(interval_end)
+                for sub_i in range(substeps):
+                    dmass += (target_capacity-dmass)*(1-math.exp(-k_interval*dt_step))
+                    if target_capacity >= mass and dt_step >= 5.0*tau and dmass >= target_capacity:
+                        dmass=target_capacity
+                    dmass=max(0.0,min(mass,dmass))
+                    t_snapshot=interval_start+(sub_i+1)*dt_step
+                    peak_dissolved=max(peak_dissolved,dmass)
+                    snap=kinetic_snapshots.setdefault(t_snapshot,{})
+                    snap.setdefault(mid,{})
+                    snap[mid]["kinetic_dissolved_g"]=round(float(dmass),6)
+                    snap[mid]["kinetic_undissolved_g"]=round(max(0.0,mass-dmass),6)
+                    snap[mid]["pre_event_equilibrium_target_g"]=round(float(target_capacity),6)
+                    snap[mid]["kinetic_state"]="transient"
+                    snap[mid]["time_s"]=float(t_snapshot)
 
                 # A 95% crossing only counts if the final equilibrium can still
                 # sustain 95% after all later additions have arrived.
@@ -665,6 +671,48 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
             warnings.append(f"{mid}: pure-water capacity is approximately {pure_capacity:.1f} g, but mixed-solution effective capacity is approximately {capacity:.1f} g after accounting for dissolved material already occupying the shared aqueous phase; solid residue can remain.")
         events.append({"time_s":at,"event":"add_solid","material":mid,"mass_g":mass,
                        "particle_size_um":particle_size,"kinetic_t95_estimate_s":kinetic_t95})
+
+    # Time-resolved precipitation layer: evaluate Q/Ksp against the evolving
+    # kinetic aqueous state, detect the first sampled supersaturation crossing,
+    # and relax toward the Ksp-limited state rather than precipitating everything
+    # instantaneously at the end of the run.
+    kinetic_precipitation={}
+    kinetic_precip_events=[]
+    if kinetic_snapshots and water_mass_total>0:
+        kinetic_precipitation=precipitation_kinetic_timeline(
+            kinetic_snapshots,
+            MATERIALS,
+            water_mass_total/max(MATERIALS["water"]["density"],1e-9)/1000.0,
+            temperature_c=temp,
+            rpm=rpm,
+        )
+        kinetic_snapshots=kinetic_precipitation.get("snapshots",kinetic_snapshots)
+        kinetic_precip_events=list(kinetic_precipitation.get("events") or [])
+        final_kinetic=kinetic_precipitation.get("final_dissolved_g") or {}
+        if kinetic_precip_events:
+            for mid,new_mass in final_kinetic.items():
+                if mid in dissolved:
+                    dissolved[mid]=max(0.0,float(new_mass))
+                    undissolved[mid]=max(0.0,float(solid_totals.get(mid,{}).get("mass_g",0.0))-dissolved[mid])
+            events.extend([{
+                "time_s":float(pe.get("time_s",duration)),
+                "event":"precipitation",
+                "material":pe.get("material"),
+                "mass_g":pe.get("precipitated_mass_g",pe.get("mass_g")),
+                "precipitated_mol":pe.get("precipitated_mol"),
+                "Q_over_Ksp_before":pe.get("Q_over_Ksp_before"),
+                "Q_over_Ksp_after":pe.get("Q_over_Ksp_after"),
+                "estimated_crossing_time_s":pe.get("estimated_crossing_time_s"),
+                "equation":pe.get("equation"),
+                "ksp":pe.get("ksp"),
+                "basis":pe.get("basis"),
+                "source":pe.get("source"),
+                "kinetic_fraction":pe.get("kinetic_fraction"),
+                "screening_t95_s":pe.get("screening_t95_s"),
+                "model_scope":pe.get("model_scope"),
+            } for pe in kinetic_precip_events])
+            warnings.append("Time-resolved Ksp precipitation is active: supersaturation crossings and partial precipitation are tracked against the kinetic state. The rate is an engineering screening parameter, not a validated crystal-growth law.")
+
     total_mass=liquid_mass+solids
     dissolved_total=sum(dissolved.values())
     uniformity=max(0.0,min(99.9,100*(1-math.exp(-rate_index*duration/45))))
@@ -676,13 +724,28 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     confidence="screening"
     from app.tools.lab_chemistry import analyze as analyze_chemistry
     aqueous_volume_l=(water_mass_total/max(MATERIALS["water"]["density"],1e-9)/1000.0) if water_mass_total>0 else volume
-    chemistry=analyze_chemistry(experiment,dissolved,MATERIALS,aqueous_volume_l)
+    chemistry=analyze_chemistry(
+        experiment,
+        dissolved,
+        MATERIALS,
+        aqueous_volume_l,
+        apply_precipitation=not bool(kinetic_precip_events),
+    )
+    chemistry.setdefault("precipitation_equilibrium",{})["kinetic_events"] = list(kinetic_precip_events)
+    chemistry["precipitation_kinetics"] = kinetic_precipitation
+    if kinetic_precip_events:
+        # Keep the equilibrium calculation as a reference potential, while the
+        # kinetic event ledger remains the actual simulated path shown to the UI.
+        chemistry["precipitation_equilibrium"]["equilibrium_events"] = list(
+            chemistry["precipitation_equilibrium"].get("events") or []
+        )
+        chemistry["precipitation_equilibrium"]["events"] = []
 
     # Feed equilibrium precipitation back into the global mass balance. The chemistry
     # layer returns material-level dissolved masses after Ksp removal; the virtual
     # lab must expose the same state, otherwise the chemistry screen and mass balance
     # would disagree.
-    initial_precipitation=chemistry.get("precipitation_equilibrium") or {}
+    initial_precipitation=(chemistry.get("precipitation_equilibrium") or {}) if not kinetic_precip_events else {}
     initial_precip_events=list(initial_precipitation.get("events") or [])
     precip_state=initial_precipitation.get("dissolved_g") or {}
     precip_delta={}
