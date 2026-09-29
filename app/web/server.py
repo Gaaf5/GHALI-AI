@@ -16,6 +16,8 @@ from app.knowledge.evidence import registry as evidence_registry
 from app.tools.equilibrium_engine import engine_status
 from app.knowledge.chemical_mapping import get_mapping, mapped_materials
 from app.knowledge.thermo_db import build_seed_tdb
+from app.tools.phreeqc_generator import build_input as build_phreeqc_input
+from app.tools.phreeqc_adapter import discover_phreeqc, run_phreeqc
 from app.web.auth import AuthManager
 
 ROOT=Path(__file__).resolve().parent; STATIC=ROOT/'static'; STATE=None
@@ -283,6 +285,19 @@ class Handler(BaseHTTPRequestHandler):
                 u=self.require('chat')
                 if not u:return
                 return self.send_data(200,jb({'materials':mapped_materials(), 'tdb_audit':build_seed_tdb().audit()}))
+            if path=='/api/lab/phreeqc':
+                u=self.require('chat')
+                if not u:return
+                try:
+                    water_kg=float(d.get('water_kg',1.0))
+                    result=build_phreeqc_input(list(d.get('additions') or []),water_kg,
+                                               float(d.get('temperature_c',25.0)),float(d.get('pH',7.0)))
+                    result['engine_discovery']=discover_phreeqc()
+                    if bool(d.get('execute')):
+                        result['execution']=run_phreeqc(result['input'],database=d.get('database'))
+                    return self.send_data(200,jb(result))
+                except (ValueError,TypeError) as e:
+                    return self.send_data(400,jb({'error':str(e)}))
             if path=='/api/lab/experiments':
                 u=self.require('chat')
                 if not u:return

@@ -37,19 +37,19 @@ MKP = MaterialMapping("mkp", "KH2PO4", 136.09, "solid", (
     Component("K+", 1, 1, {"K":1}), Component("H2PO4-", -1, 1, {"H":2,"P":1,"O":4}),
 ), "MANUFACTURER_TDS", "HIGH")
 SOP = MaterialMapping("sop", "K2SO4", 174.26, "solid", (
-    Component("K+", 1, 2, {"K":2}), Component("SO4--", -2, 1, {"S":1,"O":4}),
+    Component("K+", 1, 2, {"K":1}), Component("SO4--", -2, 1, {"S":1,"O":4}),
 ), "MANUFACTURER_TDS", "HIGH")
 NOP = MaterialMapping("nop", "KNO3", 101.10, "solid", (
     Component("K+", 1, 1, {"K":1}), Component("NO3-", -1, 1, {"N":1,"O":3}),
 ), "MANUFACTURER_TDS", "HIGH")
 AMMONIUM_SULFATE = MaterialMapping("ammonium_sulfate", "(NH4)2SO4", 132.14, "solid", (
-    Component("NH4+", 1, 2, {"N":2,"H":8}), Component("SO4--", -2, 1, {"S":1,"O":4}),
+    Component("NH4+", 1, 2, {"N":1,"H":4}), Component("SO4--", -2, 1, {"S":1,"O":4}),
 ), "MANUFACTURER_TDS", "HIGH")
 KCL = MaterialMapping("potassium_chloride", "KCl", 74.55, "solid", (
     Component("K+", 1, 1, {"K":1}), Component("Cl-", -1, 1, {"Cl":1}),
 ), "MANUFACTURER_TDS", "HIGH")
 CALCIUM_NITRATE = MaterialMapping("calcium_nitrate", "Ca(NO3)2", 236.15, "solid", (
-    Component("Ca++", 2, 1, {"Ca":1}), Component("NO3-", -1, 2, {"N":2,"O":6}),
+    Component("Ca++", 2, 1, {"Ca":1}), Component("NO3-", -1, 2, {"N":1,"O":3}),
 ), "MANUFACTURER_TDS", "HIGH", "tetrahydrate product identity; MW is the hydrate MW.")
 MAGNESIUM_SULFATE = MaterialMapping("magnesium_sulfate", "MgSO4·7H2O", 246.47, "solid", (
     Component("Mg++", 2, 1, {"Mg":1}), Component("SO4--", -2, 1, {"S":1,"O":4}),

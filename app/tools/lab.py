@@ -569,6 +569,12 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                 interval_drive=min(6.0,1.0/math.sqrt(max(interval_loading,1e-9)))
                 k_interval=base_rate*size_factor*rpm_factor*temp_factor*interval_drive
                 dmass += (target_capacity-dmass)*(1-math.exp(-k_interval*dt_total))
+                # After ~5 time constants the engineering kinetic model treats the
+                # target as reached; retaining a tiny exponential tail would create
+                # artificial milligram residues in long, fully soluble runs.
+                tau=1.0/max(k_interval,1e-12)
+                if target_capacity >= mass and dt_total >= 5.0*tau:
+                    dmass=target_capacity
                 dmass=max(0.0,min(mass,dmass))
                 peak_dissolved=max(peak_dissolved,dmass)
 
@@ -691,4 +697,30 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
         "warnings":warnings,"events":events,
         "note":"Simulation is a screening model. Chemistry rules require validated property data and laboratory calibration before production use."
     }
-__all__=["MATERIALS","catalog","resolve","simulate"]
+
+
+def sweep(base_experiment: dict[str, Any], grid: dict[str, list[Any]]) -> dict[str, Any]:
+    """Run a deterministic Cartesian parameter sweep over the virtual lab.
+
+    The default objective is maximum dissolved solids fraction, with lower
+    undissolved mass as the tie-breaker. Every run retains its input conditions
+    and full simulation result so the planner can later learn from the sweep.
+    """
+    keys=list(grid or {})
+    values=[list(grid[k]) for k in keys]
+    runs=[]
+    import itertools
+    for combo in itertools.product(*values):
+        exp=dict(base_experiment)
+        for key,value in zip(keys,combo):
+            exp[key]=value
+        result=simulate(exp)
+        dissolved=float(result.get("mass_balance",{}).get("dissolved_solids_g",0.0))
+        undissolved=float(result.get("mass_balance",{}).get("undissolved_solids_g",0.0))
+        score=dissolved/(dissolved+undissolved) if dissolved+undissolved>0 else 0.0
+        runs.append({"parameters":{k:v for k,v in zip(keys,combo)},"score":score,"result":result})
+    best=max(runs,key=lambda x:(x["score"],-x["result"].get("conditions",{}).get("temperature_c",0))) if runs else None
+    return {"runs":len(runs),"parameters":keys,"results":runs,"best":best,
+            "objective":"maximize dissolved-solids fraction; tie-break by lower temperature"}
+
+__all__=["MATERIALS","catalog","resolve","simulate","sweep"]

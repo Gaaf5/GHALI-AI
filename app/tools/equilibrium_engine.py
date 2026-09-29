@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Any
 import importlib.util
+from app.tools.phreeqc_adapter import discover_phreeqc
 
 @dataclass(frozen=True)
 class EngineCapabilities:
@@ -56,4 +57,8 @@ def detect_phreeqc() -> dict[str, Any]:
 
 def engine_status() -> dict[str, Any]:
     e = EquilibriumEngine()
-    return {"active": asdict(e.capabilities()), "phreeqc": detect_phreeqc()}
+    bindings=detect_phreeqc()
+    executable=discover_phreeqc()
+    return {"active": asdict(e.capabilities()),
+            "phreeqc": {**bindings, **executable},
+            "promotion_rule":"PHREEQC becomes the advanced equilibrium backend only after a validated database and executable/IPhreeqc runtime are available; screening results are never relabeled as PHREEQC."}
