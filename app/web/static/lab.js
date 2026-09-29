@@ -41,7 +41,7 @@ function addLabRow(material='water',mass=100,time=0,particle=500){
   row.className='lab-add-row';
   row.innerHTML='<span class="lab-order">1</span>'+
     '<select class="lab-material">'+labOptions(material)+'</select>'+
-    '<input class="lab-mass" type="number" min="0" step="0.01" value="'+mass+'">'+
+    '<input class="lab-mass" type="number" min="0.01" max="'+Math.max(1000,(+(document.querySelector('#labVolume')?.value)||1)*10000)+'" step="0.01" value="'+mass+'">'+
     '<input class="lab-particle" type="number" min="10" max="10000" step="10" value="'+particle+'" title="Particle size in micrometres">'+
     '<input class="lab-add-time" type="number" min="0" step="1" value="'+time+'">'+
     '<div class="lab-row-actions"><button class="small lab-up" type="button">↑</button><button class="small lab-down" type="button">↓</button><button class="small lab-remove" type="button">×</button></div>';
@@ -67,7 +67,11 @@ function labExperiment(){
     mass_g:+r.querySelector('.lab-mass').value||0,particle_size_um:+r.querySelector('.lab-particle').value||500,time_s:+r.querySelector('.lab-add-time').value||0
   }));
   if(!additions.length)throw Error('Add at least one material before starting the experiment.');
-  if(additions.some(a=>a.mass_g<=0))throw Error('Every material must have a mass greater than 0 g.');
+  if(additions.some(a=>!Number.isFinite(a.mass_g)||a.mass_g<=0))throw Error('Every material must have a finite mass greater than 0 g.');
+  const maxAdditionMass=Math.max(1000,volume*10000);
+  const totalCharge=additions.reduce((s,a)=>s+a.mass_g,0);
+  if(additions.some(a=>a.mass_g>maxAdditionMass))throw Error('One material charge is too large for this vessel. Check for a duplicated or mis-scaled value.');
+  if(totalCharge>maxAdditionMass*4)throw Error('Total charged mass is too large for this vessel. Check the timeline for a duplicated or mis-scaled input.');
   if(additions.some(a=>a.time_s<0||a.time_s>duration))throw Error('Each addition time must be within the experiment duration.');
   return {vessel:{working_volume_l:volume},temperature_c:temp,
     rpm:labMixerOn?rpm:0,duration_s:duration,additions};
@@ -191,12 +195,26 @@ function animateExperiment(result){
 async function runLab(){
   try{
     const exp=labExperiment();$('#labResult').innerHTML='<div class="empty">Calculating chemistry and mass balance…</div>';
+    $('#labAIReview').disabled=true;$('#labAIStatus').textContent='Run an experiment first.';$('#labAIReviewPanel').classList.add('hidden');$('#labAIReviewPanel').innerHTML='';
     const d=await api('/api/lab/run',{method:'POST',body:JSON.stringify(exp)});labRunResult=d;renderResult(d);animateExperiment(d);
+    $('#labAIReview').disabled=false;$('#labAIStatus').textContent='Optional: ask the AI to audit the chemistry logic.';
     await loadLabHistory();
   }catch(e){
     $('#labResult').innerHTML='<div class="bad"><b>Experiment not started</b><br>'+labEsc(e.message)+'</div>';
     setLabState('ERROR');
   }
+}
+async function runLabAIReview(){
+  if(!labRunResult)return;
+  const button=$('#labAIReview');button.disabled=true;$('#labAIStatus').textContent='AI is reviewing the constrained simulation…';
+  try{
+    const d=await api('/api/lab/ai-review',{method:'POST',body:JSON.stringify({result:labRunResult})});
+    $('#labAIReviewPanel').classList.remove('hidden');
+    $('#labAIReviewPanel').innerHTML='<h4>✦ AI Chemistry Review</h4><div class="lab-ai-text">'+labEsc(d.review||'No review returned.').replace(/\n/g,'<br>')+'</div>';
+    $('#labAIStatus').textContent='Review complete. AI cannot override deterministic chemistry.';
+  }catch(e){
+    $('#labAIStatus').textContent='AI review unavailable; deterministic simulation remains valid.';
+  }finally{button.disabled=false;}
 }
 async function loadLabHistory(){
   try{const d=await api('/api/lab/experiments');$('#labHistory').innerHTML=d.map(x=>'<div class="lab-history-row"><span><b>'+labEsc(x.name)+'</b><small>'+labEsc(x.created_at)+'</small></span><em>'+labEsc(String(x.result?.confidence||'screening'))+'</em></div>').join('')||'<span class="muted">No experiments yet.</span>';
@@ -212,4 +230,5 @@ $('#labMixerToggle').onclick=()=>{labMixerOn=!labMixerOn;$('#labMixerToggle').te
 $('#labClear').onclick=()=>{document.querySelector('#labAdditions').innerHTML='';renumberRows();resetSimulator();};
 $('#labReset').onclick=resetSimulator;
 $('#labRun').onclick=runLab;
+$('#labAIReview').onclick=runLabAIReview;
 (async()=>{await initLab()})();

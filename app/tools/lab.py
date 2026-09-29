@@ -231,6 +231,30 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     if temp < -50 or temp > 180: raise ValueError("Virtual lab temperature range is -50 to 180 C.")
     if any(float(a.get("time_s",0)) < 0 or float(a.get("time_s",0)) > duration for a in additions):
         raise ValueError("Every addition time must be within the experiment duration.")
+    # Guard against corrupted/UI-scaled masses. The limit scales with vessel size
+    # rather than silently clipping the user's charge. Repeated additions remain
+    # valid when they occur at different times.
+    max_addition_mass_g = max(1000.0, volume * 10000.0)
+    total_charge_g = 0.0
+    for a in additions:
+        raw_mass = a.get("mass_g", 0)
+        try:
+            mass = float(raw_mass)
+        except (TypeError, ValueError):
+            raise ValueError("Every material mass must be a valid number.")
+        if not math.isfinite(mass) or mass <= 0:
+            raise ValueError("Every material mass must be a finite number greater than 0 g.")
+        if mass > max_addition_mass_g:
+            raise ValueError(
+                f"Material charge {mass:g} g is outside the physical input range for "
+                f"this {volume:g} L vessel. Maximum per addition is {max_addition_mass_g:g} g."
+            )
+        total_charge_g += mass
+    if total_charge_g > max_addition_mass_g * 4:
+        raise ValueError(
+            f"Total charged mass {total_charge_g:g} g is outside the configured vessel "
+            f"range. Check for a duplicated or mis-scaled input."
+        )
     liquid_mass=0.0; cp_total=0.0; dissolved={}; undissolved={}; dissolution_info={}; blend_info={}; solids=0.0
     solvent_volume_l=0.0; water_mass_total=0.0; first_water_time=None
     liquid_ids=set()

@@ -227,6 +227,38 @@ class Handler(BaseHTTPRequestHandler):
                 exp_id=STATE.db.save_lab_experiment(u['id'],str(d.get('name','Virtual experiment')),d,result)
                 result['experiment_id']=exp_id
                 return self.send_data(200,jb(result))
+            if path=='/api/lab/ai-review':
+                u=self.require('chat')
+                if not u:return
+                result=d.get('result') or {}
+                if not isinstance(result,dict): return self.send_data(400,jb({'error':'Simulation result is required'}))
+                prompt=(
+                    "You are GHALI-AI's chemistry review layer. Review the supplied virtual fertilizer-mixing "
+                    "simulation, but NEVER replace its deterministic numbers, invent solubility data, or claim "
+                    "thermodynamic certainty. Check only logical consistency: mass balance, sequential addition, "
+                    "shared aqueous phase, saturation, precipitation/common-ion warnings, and whether a result is "
+                    "outside the evidence quality. Clearly distinguish source-backed facts, model estimates, and "
+                    "uncertainty. If the deterministic engine says a later material has zero capacity because the "
+                    "shared solution is saturated, explain that this is the simulator's conservative screening rule; "
+                    "do not turn it into a universal physical law. Return concise Arabic with sections: الحكم، "
+                    "ما هو منطقي، ما يحتاج حذر، والتجربة المقترحة للتحقق."
+                )
+                compact=json.dumps({
+                    'conditions':result.get('conditions'),
+                    'mass_balance':result.get('mass_balance'),
+                    'dissolved_g':result.get('dissolved_g'),
+                    'undissolved_g':result.get('undissolved_g'),
+                    'dissolution':result.get('dissolution'),
+                    'chemistry':result.get('chemistry'),
+                    'warnings':result.get('warnings'),
+                    'events':result.get('events'),
+                },ensure_ascii=False)[:30000]
+                try:
+                    review=STATE.brain.llm.chat([{'role':'system','content':prompt},
+                                                 {'role':'user','content':compact}])
+                except Exception as exc:
+                    return self.send_data(503,jb({'error':'AI review unavailable','detail':str(exc)[:240]}))
+                return self.send_data(200,jb({'review':review,'mode':'constrained_ai_review'}))
             if path=='/api/lab/materials':
                 u=self.require('chat')
                 if not u:return

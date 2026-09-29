@@ -42,6 +42,7 @@
 <div id="labAdditions"></div>
 <div class="lab-actions"><button id="labAddRow" class="small">+ Add material</button><button id="labClear" class="small">Clear</button></div>
 <div class="lab-actions"><button id="labMixerToggle" class="mixer-toggle">Mixer OFF</button><button id="labRun" class="primary wide">▶ Start experiment</button><button id="labReset" class="small">↺ Reset</button></div>
+<div class="lab-actions"><button id="labAIReview" class="small" disabled>✦ AI chemistry review</button><span id="labAIStatus" class="muted">Run an experiment first.</span></div>
 </div>
 <div class="card lab-timeline-card"><div class="section-title"><h3>Experiment timeline</h3><span id="labClock">00:00.0</span></div><div id="labEvents" class="lab-events"><div class="empty">Start an experiment to see additions and dissolution events here.</div></div></div>
 </div>
@@ -67,7 +68,7 @@
 </div>
 </div>
 <div class="lab-bottom-grid">
-<div class="card lab-result"><div class="section-title"><h3>Simulation result</h3><span id="labConfidence" class="engine-badge">—</span></div><div id="labResult"><div class="empty">The result and mass balance will appear after the run.</div></div></div>
+<div class="card lab-result"><div class="section-title"><h3>Simulation result</h3><span id="labConfidence" class="engine-badge">—</span></div><div id="labResult"><div class="empty">The result and mass balance will appear after the run.</div></div><div id="labAIReviewPanel" class="lab-ai-review hidden"></div></div>
 <div class="card lab-solubility"><div class="section-title"><div><h3>Dissolution monitor</h3><p class="muted">Predicted dissolution progress for every added solid.</p></div></div><div id="labDissolution"><div class="empty">No materials yet.</div></div></div>
 </div>
 <div class="card lab-history-card">
