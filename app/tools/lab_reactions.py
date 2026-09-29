@@ -274,6 +274,10 @@ def build_chemical_state_machine(timeline: list[dict[str, Any]], chemistry: dict
                 "rpm_factor": step.get("rpm_factor"),
                 "activation_energy_kj_mol": step.get("activation_energy_kj_mol"),
                 "kinetic_model_source": step.get("kinetic_model_source"),
+                "induction_time_s": step.get("induction_time_s"),
+                "growth_time_s": step.get("growth_time_s"),
+                "seed_factor": step.get("seed_factor"),
+                "surface_factor": step.get("surface_factor"),
             })
     return states
 

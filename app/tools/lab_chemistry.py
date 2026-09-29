@@ -44,7 +44,7 @@ KSP_RULES=[
  {"product":"CaSO4","ions":{"Ca++":1,"SO4--":1},"ksp":4.93e-5,"source":"25 C reference Ksp for CaSO4","product_mw":136.14,"equation":"Ca²⁺ + SO₄²⁻ ⇌ CaSO₄(s)",
   "kinetics":{"model":"gypsum_relative_growth_screen","supersaturation_order":2.0,
               "activation_energy_kj_mol":62.76,"reference_temperature_c":25.0,
-              "source":"CaSO4·2H2O crystal-growth studies: second-order supersaturation dependence and 15.0±0.5 kcal/mol activation energy; relative screening only"}},
+              "source":"Rolfe & De Bruyn, Journal of Crystal Growth 6 (1970) 281-289, DOI 10.1016/0022-0248(70)90081-3: second-order relative-supersaturation growth, induction/nucleation at high supersaturation or low seed, 15.0±0.5 kcal/mol activation energy; relative screening only"}},
  {"product":"CaHPO4","ions":{"Ca++":1,"HPO4--":1},"ksp":7.0e-7,"source":"25 C reference Ksp for CaHPO4","product_mw":136.06,"equation":"Ca²⁺ + HPO₄²⁻ ⇌ CaHPO₄(s)",
   "kinetics":{"model":"generic_relative_precipitation_screen","supersaturation_order":1.0,
               "reference_temperature_c":25.0,
@@ -381,7 +381,7 @@ def _kinetic_model_parameters(product, temperature_c, rpm):
 
 
 def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_volume_l,
-                                   temperature_c=25.0, rpm=300.0):
+                                   temperature_c=25.0, rpm=300.0, kinetic_options=None):
     """Apply a time-resolved precipitation overlay to kinetic dissolution snapshots.
 
     This is an engineering screening layer, not a validated crystal-growth model.
@@ -418,7 +418,13 @@ def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_vo
     previous_ratios = {}
     previous_time = None
     events = []
-
+    options = dict(kinetic_options or {})
+    # These are explicit scenario/calibration controls, never hidden constants.
+    # induction_time_s may be supplied from an experiment; otherwise zero means
+    # "no measured induction delay" rather than an invented material property.
+    induction_time_s = max(0.0, float(options.get("induction_time_s", 0.0) or 0.0))
+    seed_factor = max(0.0, float(options.get("seed_factor", 1.0) or 0.0))
+    surface_factor = max(0.0, float(options.get("surface_factor", 1.0) or 0.0))
     # A deliberately conservative generic screening t95. It is NOT a material
     # property. Stirring modifies the mixing/mass-transfer environment only.
     rpm_factor = 1.0 if rpm <= 0 else max(0.35, min(3.0, (float(rpm) / 300.0) ** 0.5))
@@ -481,12 +487,17 @@ def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_vo
                     effective_dt=max(0.0,t-float(crossing_time or t))
                     kinetic_params=_kinetic_model_parameters(product,temperature_c,rpm)
                     ss_order=float(kinetic_params.get("supersaturation_order") or 1.0)
+                    # Induction/nucleation: a supersaturated solution may not grow
+                    # immediately. A user-supplied induction time is therefore an
+                    # explicit experimental/calibration parameter.
+                    growth_dt=max(0.0,effective_dt-induction_time_s)
                     # The mineral-specific exponent changes the relative rate only;
                     # the absolute rate remains anchored to the engineering t95 screen.
                     rate_multiplier=max(0.0,min(25.0,(max(ratio,1.0)**ss_order-1.0)))
                     rate_multiplier*=float(kinetic_params.get("temperature_factor") or 1.0)
                     rate_multiplier*=float(kinetic_params.get("rpm_factor") or 1.0)
-                    fraction=1.0-math.exp(-k95*max(0.05,rate_multiplier)*effective_dt)
+                    rate_multiplier*=max(0.0,seed_factor)*max(0.0,surface_factor)
+                    fraction=1.0-math.exp(-k95*max(0.05,rate_multiplier)*growth_dt) if growth_dt>0 else 0.0
                     fraction=max(0.0,min(1.0,fraction))
                     before_current=dict(current)
                     for mid, possible in potential_removed.items():
@@ -539,7 +550,11 @@ def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_vo
                         "rpm_factor": round(float(kinetic_params.get("rpm_factor") or 1.0), 6),
                         "activation_energy_kj_mol": kinetic_params.get("activation_energy_kj_mol"),
                         "kinetic_model_source": kinetic_params.get("source"),
-                        "model_scope": "mineral-specific relative screening; absolute rate not experimentally calibrated",
+                        "induction_time_s": round(induction_time_s, 6),
+                        "growth_time_s": round(growth_dt, 6),
+                        "seed_factor": round(seed_factor, 6),
+                        "surface_factor": round(surface_factor, 6),
+                        "model_scope": "mineral-specific relative screening with explicit induction/seed/surface controls; absolute rate not experimentally calibrated",
                     })
 
         # Persist the adjusted event-time aqueous state and the precipitation ledger.
@@ -589,11 +604,15 @@ def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_vo
         "events": events,
         "cumulative_precipitated_g": {k: round(v, 9) for k, v in cumulative_removed.items()},
         "final_dissolved_g": final_dissolved,
-        "model": "time-resolved Q/Ksp crossing + kinetic relaxation to Ksp-limited state",
+        "model": "time-resolved Q/Ksp crossing + mineral-specific relative kinetic relaxation",
         "screening_parameters": {
             "screening_t95_s": round(screening_t95_s, 6),
             "rpm_factor": round(rpm_factor, 6),
-            "basis": "supersaturation-dependent engineering screening; not a validated mineral-specific rate law",
+            "induction_time_s": round(induction_time_s, 6),
+            "seed_factor": round(seed_factor, 6),
+            "surface_factor": round(surface_factor, 6),
+            "kinetic_options_source": "user experiment/calibration inputs" if kinetic_options else "defaults: no measured induction delay, normalized seed/surface factors",
+            "basis": "mineral-specific relative supersaturation screening with explicit induction/temperature/mixing/seed/surface controls; absolute rate remains uncalibrated",
         },
     }
 

@@ -685,6 +685,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
             water_mass_total/max(MATERIALS["water"]["density"],1e-9)/1000.0,
             temperature_c=temp,
             rpm=rpm,
+            kinetic_options=(experiment.get("precipitation_kinetics") or experiment.get("kinetics") or {}),
         )
         kinetic_snapshots=kinetic_precipitation.get("snapshots",kinetic_snapshots)
         kinetic_precip_events=list(kinetic_precipitation.get("events") or [])
