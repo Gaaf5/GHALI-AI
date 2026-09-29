@@ -101,6 +101,39 @@ def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str
         if material in snap:
             step["material_state"] = dict(snap[material])
         timeline.append(step)
+        # Explicitly expose equilibrium displacement caused by this addition.
+        # The affected material is often an EARLIER addition: e.g. SOP added at
+        # t=600 s can lower MAP's dissolved equilibrium target. Therefore inspect
+        # every material in the exact event snapshot, not only the newly added one.
+        for affected_material, ms in snap.items():
+            if not isinstance(ms, dict):
+                continue
+            before = ms.get("pre_event_equilibrium_target_g")
+            after = ms.get("event_equilibrium_target_g")
+            if before is None or after is None or abs(float(after) - float(before)) <= 1e-6:
+                continue
+            affected_info = SPECIES.get(str(affected_material), {"formula":str(affected_material), "label":str(affected_material)})
+            delta = float(after) - float(before)
+            direction = "redissolution" if delta > 0 else "re-precipitation"
+            timeline.append({
+                "time_s": t,
+                "order": int(a.get("order", i + 1)) + 0.1,
+                "event": "equilibrium_shift",
+                "material": str(affected_material),
+                "display": affected_info["formula"],
+                "label": affected_info.get("label", str(affected_material)),
+                "action": "↔ " + direction,
+                "mass_g": abs(delta),
+                "phase_before": list(aqueous),
+                "dissociation": [],
+                "dissociation_equation": "dissolved ⇌ solid",
+                "species_after": list(aqueous),
+                "reactions": [f"Shared-solution equilibrium shift: {before:.2f} g → {after:.2f} g dissolved"],
+                "acid_base_network": [],
+                "status": "deterministic_screening",
+                "material_state": dict(ms),
+                "description": f"The addition changes the shared equilibrium for {affected_info.get('label', affected_material)}: {before:.2f} g → {after:.2f} g dissolved ({direction}).",
+            })
 
     # Attach actual calculated species when available; never invent missing values.
     ph = chemistry.get("ph_estimate") or {}
