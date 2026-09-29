@@ -112,15 +112,22 @@ function renderReactionTimeline(result){
   if(!steps.length){box.innerHTML='<div class="empty">No chemical events yet.</div>';details.innerHTML='';return;}
   const additions=steps.filter(x=>x.event==='addition');
   box.innerHTML=additions.map((x,i)=>{
-    const formula=labEsc(x.display||x.material);
+    const formula=labEsc(x.display||x.material), label=labEsc(x.label||x.material);
     const next=additions[i+1];
-    return '<div class="reaction-step"><div class="rx-time">t = '+formatClock(x.time_s)+'</div><div class="rx-main">'+formula+'</div><div class="rx-sub">'+labEsc(x.description||'Chemical addition')+'</div></div>'+(next?'<div class="reaction-arrow">→</div>':'');
+    const action=labEsc(x.action||('+ '+label));
+    const eq=x.dissociation_equation?'<div class="rx-reaction">'+labEsc(x.dissociation_equation)+'</div>':'';
+    return '<div class="reaction-step" data-reaction-index="'+i+'"><div class="rx-time">t = '+formatClock(x.time_s)+'</div><div class="rx-main">'+action+'</div><div class="rx-sub"><b>'+formula+'</b> · '+labEsc(x.description||'Chemical addition')+'</div>'+eq+'</div>'+(next?'<div class="reaction-arrow">→</div>':'');
   }).join('');
   const last=additions[additions.length-1]||steps[steps.length-1];
   const species=last?.species_after||[];
   const precip=steps.filter(x=>x.event==='precipitation');
+  const networks=[...new Set(additions.flatMap(x=>x.acid_base_network||[]))];
+  const finalSpecies=last?.final_calculated_species_mol_L||{};
+  const finalRows=Object.entries(finalSpecies).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,12);
   details.innerHTML='<div class="rx-species">'+species.map(s=>'<span>'+labEsc(s)+'</span>').join('')+'</div>'+
-    (last?.dissociation?.length?'<div class="rx-reaction"><b>Dissociation:</b> '+labEsc(last.display)+' → '+last.dissociation.map(labEsc).join(' + ')+'</div>':'')+
+    (last?.dissociation_equation?'<div class="rx-reaction"><b>Dissociation:</b> '+labEsc(last.dissociation_equation)+'</div>':'')+
+    (networks.length?'<div class="rx-reaction"><b>Acid-base network (candidate equilibria):</b><br>'+networks.map(labEsc).join('<br>')+'</div>':'')+
+    (finalRows.length?'<div class="rx-reaction"><b>Final calculated aqueous species:</b> '+finalRows.map(([k,v])=>labEsc(k)+' = '+Number(v).toExponential(3)+' M').join(' · ')+'<br><small>These values describe the final calculated state, not each event-time snapshot.</small></div>':'')+
     (precip.length?precip.map(x=>'<div class="rx-reaction"><b>Precipitation:</b> '+labEsc(x.display)+'</div>').join(''):'');
   $('#labReactionState').textContent=(result.quality?.confidence||'SCREENING').toUpperCase();
 }
@@ -207,6 +214,8 @@ function animateExperiment(result){
       added.add(e.material+'@'+e.time_s);spawnParticles(e.material,e.mass_g);
       const name=materialName(e.material);$('#simOverlay').innerHTML='<b>ADD '+labEsc(name).toUpperCase()+'</b><span>'+Number(e.mass_g).toFixed(2)+' g enters the vessel</span>';
     });
+    const activeIndex=additions.reduce((idx,e,i)=>e.time_s<=t?i:idx,-1);
+    document.querySelectorAll('.reaction-step').forEach((el,i)=>el.classList.toggle('active',i===activeIndex));
     let liveResidue=0;
     Object.entries(dissolved).forEach(([id,x])=>{
       const elapsed=Math.max(0,t-(x.start_s||0));

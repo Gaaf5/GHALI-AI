@@ -17,6 +17,15 @@ SPECIES = {
     "zinc_sulfate": {"formula":"ZnSO₄·7H₂O","kind":"salt","label":"Zinc sulfate heptahydrate"},
 }
 
+ACID_BASE_NETWORK = {
+    "phosphate": ["H₃PO₄ ⇌ H₂PO₄⁻ + H⁺", "H₂PO₄⁻ ⇌ HPO₄²⁻ + H⁺", "HPO₄²⁻ ⇌ PO₄³⁻ + H⁺"],
+    "ammonium": ["NH₄⁺ ⇌ NH₃ + H⁺"],
+    "sulfate": ["HSO₄⁻ ⇌ SO₄²⁻ + H⁺"],
+    "sulfite": ["H₂SO₃ ⇌ HSO₃⁻ + H⁺", "HSO₃⁻ ⇌ SO₃²⁻ + H⁺"],
+    "phosphite": ["H₃PO₃ ⇌ H₂PO₃⁻ + H⁺", "H₂PO₃⁻ ⇌ HPO₃²⁻ + H⁺"],
+    "borate": ["H₃BO₃ + H₂O ⇌ B(OH)₄⁻ + H⁺"],
+}
+
 DISSOCIATION = {
     "map": ["NH₄⁺", "H₂PO₄⁻"],
     "dap": ["NH₄⁺", "NH₄⁺", "HPO₄²⁻"],
@@ -46,11 +55,15 @@ def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str
             "event": "addition",
             "material": material,
             "display": info["formula"],
+            "label": info.get("label", material),
+            "action": f"+ {info.get('label', material)}",
             "mass_g": float(a.get("mass_g", 0)),
             "phase_before": list(aqueous),
             "dissociation": list(DISSOCIATION.get(material, [])),
+            "dissociation_equation": (f"{info['formula']} → {' + '.join(DISSOCIATION[material])}" if material in DISSOCIATION else None),
             "species_after": list(aqueous),
             "reactions": [],
+            "acid_base_network": [],
             "status": "screening",
         }
         if material == "water":
@@ -59,6 +72,16 @@ def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str
             step["species_after"] = list(aqueous)
             step["description"] = "Water added: solvent is represented as H₂O."
         else:
+            if material in {"map", "dap", "mkp", "urea_phosphate"}:
+                step["acid_base_network"] += list(ACID_BASE_NETWORK["phosphate"])
+            if material in {"map", "dap", "ammonium_sulfate", "ammonium_sulfite"}:
+                step["acid_base_network"] += list(ACID_BASE_NETWORK["ammonium"])
+            if material in {"sop", "ammonium_sulfate", "zinc_sulfate"}:
+                step["acid_base_network"] += list(ACID_BASE_NETWORK["sulfate"])
+            if material == "ammonium_sulfite":
+                step["acid_base_network"] += list(ACID_BASE_NETWORK["sulfite"])
+            if material == "boric_acid":
+                step["acid_base_network"] += list(ACID_BASE_NETWORK["borate"])
             diss = DISSOCIATION.get(material)
             if diss:
                 for sp in diss:
@@ -76,8 +99,11 @@ def build_reaction_timeline(additions: list[dict[str, Any]], chemistry: dict[str
     ph = chemistry.get("ph_estimate") or {}
     calculated = ph.get("species_mol_L") if isinstance(ph, dict) else None
     if isinstance(calculated, dict):
+        final_species = {k: float(v) for k, v in calculated.items() if float(v) > 1e-12}
         for step in timeline:
-            step["calculated_species_mol_L"] = {k: float(v) for k, v in calculated.items() if float(v) > 1e-12}
+            if step.get("event") == "addition":
+                step["final_calculated_species_mol_L"] = final_species
+                step["calculation_scope"] = "final aqueous state; not an event-time snapshot"
     precip = chemistry.get("precipitation_equilibrium") or {}
     events = precip.get("events") if isinstance(precip, dict) else []
     if isinstance(events, list):
