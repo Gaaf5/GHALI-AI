@@ -85,7 +85,7 @@ function resetSimulator(){
   $('#simSurface').setAttribute('d','M86 300 Q210 287 334 300');
   $('#labVessel').classList.remove('lab-vibrating');$('#labMixerToggle').textContent='Mixer OFF';$('#labMixerToggle').classList.remove('on');labMixerOn=false;
   $('#labClock').textContent='00:00.0';$('#simStartedAt').textContent='Not started';$('#simOverlay').innerHTML='<b>READY</b><span>Add materials and start the experiment</span>';
-  $('#labEvents').innerHTML='<div class="empty">Start an experiment to see additions and dissolution events here.</div>';
+  $('#labEvents').innerHTML='<div class="empty">Start an experiment to see additions and dissolution events here.</div>';$('#labStateLedger').innerHTML='<div class="empty">Run an experiment to populate the event-time state ledger.</div>';
   $('#labDissolution').innerHTML='<div class="empty">No materials yet.</div>';setLabState('READY');
 }
 function makeParticle(x,y,r=4,color='#ddd'){
@@ -135,6 +135,23 @@ function renderReactionTimeline(result){
     (finalRows.length?'<div class="rx-reaction"><b>Final calculated aqueous species:</b> '+finalRows.map(([k,v])=>labEsc(k)+' = '+Number(v).toExponential(3)+' M').join(' · ')+'<br><small>These values describe the final calculated state, not each event-time snapshot.</small></div>':'')+
     (precip.length?precip.map(x=>'<div class="rx-reaction"><b>Precipitation:</b> '+labEsc(x.display)+'</div>').join(''):'');
   $('#labReactionState').textContent=(result.quality?.confidence||'SCREENING').toUpperCase();
+}
+function renderStateLedger(result){
+  const box=$('#labStateLedger');
+  const timeline=result.state_timeline||{};
+  const times=Object.keys(timeline).map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
+  if(!times.length){box.innerHTML='<div class="empty">No deterministic event-time states yet.</div>';return;}
+  box.innerHTML=times.map(t=>{
+    const state=timeline[String(t)]||{};
+    const rows=Object.entries(state).filter(([id,x])=>x&&typeof x==='object'&&('charged_g' in x || 'kinetic_dissolved_g' in x)).map(([id,x])=>{
+      const actual=x.kinetic_dissolved_g==null?'-':Number(x.kinetic_dissolved_g).toFixed(2)+' g';
+      const target=x.event_equilibrium_target_g==null?'-':Number(x.event_equilibrium_target_g).toFixed(2)+' g';
+      const before=x.pre_event_equilibrium_target_g==null?'-':Number(x.pre_event_equilibrium_target_g).toFixed(2)+' g';
+      const solid=x.equilibrium_undissolved_g==null?'-':Number(x.equilibrium_undissolved_g).toFixed(2)+' g';
+      return '<div class="lab-event"><b>'+labEsc(materialName(id))+'</b><span>actual '+actual+' · target '+target+' · before '+before+'</span><em>solid '+solid+'</em></div>';
+    }).join('');
+    return '<div class="lab-event"><b>t = '+formatClock(t)+'</b><span>'+ (rows||'<span class="muted">No solid-state entries</span>') +'</span></div>';
+  }).join('');
 }
 function renderEvents(result){
   const events=[...(result.events||[])].sort((a,b)=>a.time_s-b.time_s);
@@ -198,7 +215,7 @@ function renderResult(d){
     (evidenceRows?'<h4>Evidence / References</h4>'+evidenceRows:'')+
     qPanel+warns+
     '<div class="lab-model">'+labEsc(d.note)+'</div>';
-  renderDissolution(d);renderEvents(d);renderReactionTimeline(d);
+  renderDissolution(d);renderEvents(d);renderReactionTimeline(d);renderStateLedger(d);
 }
 function animateExperiment(result){
   if(labAnimation)cancelAnimationFrame(labAnimation);
