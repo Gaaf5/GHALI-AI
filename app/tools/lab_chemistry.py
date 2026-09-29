@@ -41,8 +41,8 @@ SOLUBILITY_PRODUCTS={
  ("Ca++","CO3--"):("CaCO3","low","Calcium carbonate precipitation is a compatibility risk."),
 }
 KSP_RULES=[
- {"product":"CaSO4","ions":{"Ca++":1,"SO4--":1},"ksp":4.93e-5,"source":"25 C reference Ksp for CaSO4"},
- {"product":"CaHPO4","ions":{"Ca++":1,"HPO4--":1},"ksp":7.0e-7,"source":"25 C reference Ksp for CaHPO4"},
+ {"product":"CaSO4","ions":{"Ca++":1,"SO4--":1},"ksp":4.93e-5,"source":"25 C reference Ksp for CaSO4","product_mw":136.14,"equation":"Ca²⁺ + SO₄²⁻ ⇌ CaSO₄(s)"},
+ {"product":"CaHPO4","ions":{"Ca++":1,"HPO4--":1},"ksp":7.0e-7,"source":"25 C reference Ksp for CaHPO4","product_mw":136.06,"equation":"Ca²⁺ + HPO₄²⁻ ⇌ CaHPO₄(s)"},
 ]
 def ions_for(material, mass_g):
     rows=SPECIES.get(material,[])
@@ -336,7 +336,9 @@ def precipitation_equilibrium(dissolved_g, material_data, volume_l, temperature_
             for mid,mass in consumed.items():
                 current[mid]=max(0.0,current[mid]-mass)
             events.append({"product":rule["product"],"precipitated_mol":precip,
-                           "Q_over_Ksp_before":ratio,"basis":"activity" if I<=0.5 else "concentration"})
+                           "precipitated_mass_g":precip*float(rule.get("product_mw",0.0)),
+                           "Q_over_Ksp_before":ratio,"basis":"activity" if I<=0.5 else "concentration",
+                           "equation":rule.get("equation"),"ksp":rule.get("ksp"),"source":rule.get("source")})
             changed=True
         if not changed: break
     return {"dissolved_g":current,"events":events,

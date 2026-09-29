@@ -682,7 +682,9 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
     # layer returns material-level dissolved masses after Ksp removal; the virtual
     # lab must expose the same state, otherwise the chemistry screen and mass balance
     # would disagree.
-    precip_state=(chemistry.get("precipitation_equilibrium") or {}).get("dissolved_g") or {}
+    initial_precipitation=chemistry.get("precipitation_equilibrium") or {}
+    initial_precip_events=list(initial_precipitation.get("events") or [])
+    precip_state=initial_precipitation.get("dissolved_g") or {}
     precip_delta={}
     for mid,old_mass in list(dissolved.items()):
         new_mass=max(0.0,float(precip_state.get(mid,old_mass)))
@@ -700,14 +702,20 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                 info["precipitated_g"]=float(info.get("precipitated_g",0.0))+delta
                 info["complete"]=False
     if precip_delta:
-        for p in (chemistry.get("precipitation_equilibrium") or {}).get("events",[]):
+        for p in initial_precip_events:
             events.append({"time_s":duration,"event":"precipitation","material":p["product"],
-                           "mass_g":round(sum(precip_delta.values()),6),
+                           "mass_g":round(float(p.get("precipitated_mass_g") or 0.0),6),
                            "precipitated_mol":p.get("precipitated_mol",0.0),
-                           "Q_over_Ksp_before":p.get("Q_over_Ksp_before")})
-        # Re-analyze the actual final aqueous phase so pH, ionic strength and Ksp
-        # screens describe the same mass-balanced state returned to the UI.
+                           "Q_over_Ksp_before":p.get("Q_over_Ksp_before"),
+                           "equation":p.get("equation"),"ksp":p.get("ksp"),"basis":p.get("basis"),
+                           "source":p.get("source")})
+        # Preserve the event ledger even after the final re-analysis reaches a
+        # sub-saturation state. The event records the precipitation that occurred
+        # during the mass-balance correction; the re-analysis describes the new state.
         chemistry=analyze_chemistry(experiment,dissolved,MATERIALS,aqueous_volume_l)
+        chemistry.setdefault("precipitation_equilibrium",{})["events"]=initial_precip_events
+        chemistry["precipitation_equilibrium"]["precipitation_event_history"]=initial_precip_events
+        chemistry["precipitation_equilibrium"]["dissolved_g"]={k:float(v) for k,v in dissolved.items()}
         warnings.append("Ksp precipitation was fed back into the final mass balance; reported dissolved/undissolved masses include the predicted precipitated solid.")
     warnings.extend(chemistry.get("warnings",[]))
     dissolved_total=sum(dissolved.values())

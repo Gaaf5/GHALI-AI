@@ -111,14 +111,15 @@ function renderReactionTimeline(result){
   const box=$('#labReactionTimeline'), details=$('#labReactionDetails');
   if(!steps.length){box.innerHTML='<div class="empty">No chemical events yet.</div>';details.innerHTML='';return;}
   const additions=steps.filter(x=>x.event==='addition');
-  const visualSteps=steps.filter(x=>x.event==='addition'||x.event==='equilibrium_shift');
+  const visualSteps=steps.filter(x=>x.event==='addition'||x.event==='equilibrium_shift'||x.event==='precipitation');
   box.innerHTML=visualSteps.map((x,i)=>{
     const formula=labEsc(x.display||x.material), label=labEsc(x.label||x.material);
     const next=visualSteps[i+1];
-    const action=labEsc(x.action||('+ '+label));
     const isShift=x.event==='equilibrium_shift';
-    const additionIndex=isShift?'-1':String(additions.indexOf(x));
-    const eq=x.dissociation_equation?'<div class="rx-reaction"><b>'+((x.event==='equilibrium_shift')?'Equilibrium repartition:':'Dissociation:')+'</b> '+labEsc(x.dissociation_equation)+'</div>':'';
+    const isPrecip=x.event==='precipitation';
+    const action=labEsc(x.action||(isPrecip?'↓ precipitate formed':('+ '+label)));
+    const additionIndex=(isShift||isPrecip)?'-1':String(additions.indexOf(x));
+    const eq=x.dissociation_equation?'<div class="rx-reaction"><b>'+((x.event==='equilibrium_shift')?'Equilibrium repartition:':'Dissociation:')+'</b> '+labEsc(x.dissociation_equation)+'</div>':(isPrecip&&x.equation?'<div class="rx-reaction"><b>Ksp precipitation:</b> '+labEsc(x.equation)+' · '+Number(x.precipitated_mass_g||0).toFixed(2)+' g predicted solid · Q/Ksp '+Number(x.Q_over_Ksp_before||0).toFixed(2)+'</div>':'');
     const st=x.material_state||{};
     const stateLine=(st.kinetic_dissolved_g!==undefined?'<div class="rx-state"><b>Actual kinetic state:</b> '+Number(st.kinetic_dissolved_g).toFixed(2)+' g dissolved · '+Number(st.kinetic_undissolved_g||0).toFixed(2)+' g solid</div>':'')+
       (st.event_equilibrium_target_g!==undefined?'<div class="rx-state"><b>After-event equilibrium target:</b> '+Number(st.event_equilibrium_target_g).toFixed(2)+' g dissolved</div>':'')+
