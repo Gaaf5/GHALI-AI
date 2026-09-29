@@ -3,6 +3,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 from app.tools.solubility_data import aqueous_solubility, SOURCE_SOLUBILITY_CURVES
+from app.knowledge.evidence import evidence_for
 
 # Digital-lab data are engineering approximations, not physical measurements.
 # Every result carries a confidence class and model provenance.
@@ -100,7 +101,9 @@ def catalog():
         out.append({"id":key,"name":ARABIC_NAMES.get(key,key.replace("_"," ").title()),
                     "kind":v["kind"],"mw":v["mw"],"density":v["density"],
                     "solubility_g_100ml":v["solubility_g_100ml"],"solubility_g_per_100g_water_20c":sol20,
-                    "solubility_source":sol_source,"solubility_source_url":sol_url,"solubility_quality":sol_quality,"cp":v["cp"]})
+                    "solubility_source":sol_source,"solubility_source_url":sol_url,"solubility_quality":sol_quality,
+                    "evidence":evidence_for(sol_url, quality=sol_quality, basis="g solute / 100 g H2O" if sol20 is not None else None, temperature_c=20 if sol20 is not None else None, product_specific=bool(v.get("water_soluble") or v.get("product_note"))),
+                    "cp":v["cp"]})
     return out
 
 SOLUBILITY_CURVES = SOURCE_SOLUBILITY_CURVES
@@ -327,18 +330,18 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                         +[x["time_s"] for x in solid_additions]
                         +[float(x.get("time_s",0)) for x in additions
                           if resolve(x.get("material",""))=="water"]))
+    # At every addition event, solve a single shared aqueous-phase equilibrium
+    # target for ALL active solids. A later salt is therefore allowed to displace
+    # part of an earlier saturated solute instead of receiving fresh water capacity.
     solution_dissolved={}
     solution_charged={}
     shared_schedule={}
     for eq_t in eq_times:
         active_mass={}
-        new_mass={}
         for x in solid_additions:
             if x["time_s"]<=eq_t:
                 mid=x["material"]
                 active_mass[mid]=active_mass.get(mid,0.0)+x["mass_g"]
-                if abs(x["time_s"]-eq_t)<1e-9:
-                    new_mass[mid]=new_mass.get(mid,0.0)+x["mass_g"]
         water_at_t=sum(max(0.0,float(x.get("mass_g",0))) for x in additions
                        if resolve(x.get("material",""))=="water"
                        and float(x.get("time_s",0))<=eq_t)
@@ -352,78 +355,60 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
             if sol_t is not None:
                 pure_caps[mid]=max(0.0,sol_t*water_at_t/100.0)
             elif qualitative[mid]:
-                # No universal saturation curve exists for these commercial grades.
-                # Their current charge is the only defensible screening ceiling.
+                # Product-TDS qualitative claim: use the current charge as a
+                # screening ceiling, never as a universal saturation value.
                 pure_caps[mid]=mass_active
             else:
                 pure_caps[mid]=0.0
 
-        # Carry the actual dissolved state forward. Adding water can increase the
-        # available capacity of material that was already present, but we never
-        # manufacture dissolved mass merely because another material was charged.
-        for mid in list(solution_dissolved):
-            if mid not in active_mass:
-                continue
-            solution_dissolved[mid]=min(solution_dissolved[mid],active_mass[mid],pure_caps.get(mid,0.0))
-
-        def current_load():
+        # One common saturation factor is solved for the whole aqueous phase.
+        # This is the key invariant: capacities are NOT additive across solutes.
+        def normalized_load(factor):
             load=0.0
-            for mid,diss in solution_dissolved.items():
+            for mid,mass_active in active_mass.items():
                 cap=pure_caps.get(mid,0.0)
                 if cap>0:
-                    load += diss/cap
-            return min(1.0,max(0.0,load))
+                    load += min(mass_active,cap*factor)/cap
+            return load
 
-        # If water was added, let previously charged undissolved solids use newly
-        # created room before the new solids at this timestamp compete for it.
-        for mid in active_mass:
-            if mid in new_mass:
-                continue
-            cap=pure_caps.get(mid,0.0)
-            if cap<=0:
-                continue
-            unmet=max(0.0,min(active_mass[mid],cap)-solution_dissolved.get(mid,0.0))
-            if unmet<=0:
-                continue
-            room=max(0.0,1.0-current_load())
-            take=min(unmet,cap*room)
-            solution_dissolved[mid]=solution_dissolved.get(mid,0.0)+take
+        if not active_mass or normalized_load(1.0)<=1.0+1e-12:
+            shared_factor=1.0
+        else:
+            lo,hi=0.0,1.0
+            for _ in range(80):
+                f=(lo+hi)/2.0
+                if normalized_load(f)>1.0:
+                    hi=f
+                else:
+                    lo=f
+            shared_factor=lo
 
-        # New additions at the same timestamp share the remaining budget
-        # proportionally to their normalized demand. This avoids arbitrary row-order
-        # effects for simultaneous additions. A genuinely later addition is handled
-        # at its own event and sees the state left by all earlier additions.
-        room=max(0.0,1.0-current_load())
-        demands={}
-        for mid,added in new_mass.items():
-            cap=pure_caps.get(mid,0.0)
-            demands[mid]=min(added/max(cap,1e-12),1.0) if cap>0 else 0.0
-        total_demand=sum(demands.values())
-        for mid,added in new_mass.items():
-            cap=pure_caps.get(mid,0.0)
-            if cap<=0:
-                continue
-            share=(demands[mid]/total_demand) if total_demand>0 else 0.0
-            allocated=min(added,cap*room*share)
-            solution_dissolved[mid]=solution_dissolved.get(mid,0.0)+allocated
-
-        # Keep the charged mass ledger for diagnostics.
+        # The equilibrium target may re-partition the dissolved phase when a new
+        # material arrives. This explicitly permits precipitation of an earlier
+        # saturated material and dissolution of a later material in the same water.
+        solution_dissolved={}
         for mid,mass_active in active_mass.items():
+            cap=pure_caps.get(mid,0.0)
+            solution_dissolved[mid]=min(mass_active,cap*shared_factor) if cap>0 else 0.0
             solution_charged[mid]=mass_active
 
-        load=current_load()
+        load=normalized_load(shared_factor)
         materials={}
         for mid,mass_active in active_mass.items():
             cap=pure_caps.get(mid,0.0)
-            diss=min(mass_active,max(0.0,solution_dissolved.get(mid,0.0)))
-            other_load=max(0.0,load-(diss/cap if cap>0 else 0.0))
+            diss=solution_dissolved.get(mid,0.0)
+            other_load=0.0
+            for other,other_diss in solution_dissolved.items():
+                if other==mid: continue
+                other_cap=pure_caps.get(other,0.0)
+                if other_cap>0: other_load += other_diss/other_cap
             materials[mid]={
                 "pure_capacity_g":cap if cap>0 else None,
                 "effective_capacity_g":diss,
                 "dissolved_g":diss,
                 "other_solute_particle_ratio":other_load,
                 "solvent_occupancy_factor":max(0.0,1.0-other_load),
-                "shared_saturation_factor":max(0.0,1.0-other_load),
+                "shared_saturation_factor":shared_factor,
                 "shared_saturation_load":load,
                 "undissolved_g":max(0.0,mass_active-diss),
                 "state_model":"stateful_shared_solution",
@@ -434,7 +419,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
             "total_dissolved_solids_g":sum(solution_dissolved.values()),
             "shared_solvent_model":"stateful shared solution ledger",
             "shared_saturation_load":load,
-            "warning":"Stateful shared-solution screening: previously dissolved material remains in the aqueous phase and consumes the remaining shared saturation budget. Later additions do not receive an independent pure-water capacity. This is an engineering heuristic, not a full activity-coefficient/speciation model."
+            "warning":"Stateful shared-solution screening: each addition is equilibrated against the entire existing aqueous phase. Later additions can force precipitation of earlier dissolved material and do not receive an independent pure-water capacity. This is an engineering heuristic, not a full activity-coefficient/speciation model."
         }
     shared_eq=shared_schedule.get(duration,{"materials":{}})
     if shared_eq:
@@ -631,6 +616,7 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                               "solubility_source":sol_source,
                               "solubility_source_url":sol_url,
                               "solubility_quality":sol_quality,
+                              "evidence":evidence_for(sol_url, quality=sol_quality, basis="g solute / 100 g H2O" if sol_ref is not None else None, temperature_c=temp if sol_ref is not None else None, product_specific=bool(data.get("water_soluble") or data.get("product_note"))),
                               "water_mass_total_g":round(water_mass_total,6),
                               "final_dissolved_g":dissolved_mass,"final_pct":100*dissolved_mass/max(mass,1e-12),
                               "peak_dissolved_g":round(peak_dissolved,6),

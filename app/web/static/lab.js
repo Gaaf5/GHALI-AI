@@ -149,11 +149,14 @@ function renderResult(d){
   const phRow=ph?.status==='screening'?'<div class="resrow"><span>Calculated pH (screening)</span><b>'+Number(ph.pH).toFixed(2)+'</b></div>':'';
   const speciesRows=ph?.status==='screening'?Object.entries(ph.species_mol_L||{}).filter(([,v])=>Number(v)>1e-8).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,16).map(([k,v])=>'<div class="resrow"><span>'+labEsc(k)+'</span><b>'+Number(v).toExponential(3)+' M</b></div>').join(''):'';
   const precipRows=(d.chemistry?.precipitation_equilibrium?.events||[]).map(x=>'<div class="resrow"><span>'+labEsc(x.product)+' precipitated</span><b>'+Number(x.precipitated_mol||0).toFixed(4)+' mol · Q/Ksp '+Number(x.Q_over_Ksp_before||0).toFixed(2)+'</b></div>').join('');
+  const evidenceSeen=new Set();
+  const evidenceRows=Object.entries(d.dissolution||[]).map(([id,x])=>{const e=x.evidence;if(!e||evidenceSeen.has(e.source_id))return '';evidenceSeen.add(e.source_id);return '<div class="resrow"><span>'+labEsc(e.source_name||e.source_id||'Source')+' · '+labEsc(e.confidence||'UNKNOWN')+'</span><b>'+(e.source_url?'<a href="'+labEsc(e.source_url)+'" target="_blank" rel="noopener">Reference</a>':'No URL')+'</b></div>';}).join('');
   $('#labResult').innerHTML='<div class="lab-kpis"><div><span>Uniformity</span><b>'+d.mixing_uniformity_pct.toFixed(1)+'%</b></div>'+
     '<div><span>Undissolved</span><b>'+u.toFixed(2)+' g</b></div><div><span>Solvent volume</span><b>'+(Number.isFinite(solventVol)?Number(solventVol).toFixed(3):'—')+' L</b></div><div><span>Density</span><b>'+d.estimated_density_g_ml.toFixed(3)+' g/mL</b></div></div>'+
     '<h4>Dissolved</h4>'+rows+(blends?'<h4>Liquid blending / homogenization</h4>'+blends:'')+(left?'<h4>Undissolved / precipitate</h4>'+left:'')+
     (multi?'<h4>Multicomponent solution screen</h4>'+phRow+'<div class="resrow"><span>Ionic strength</span><b>'+Number(multi.ionic_strength_mol_L||0).toFixed(4)+' mol/L</b></div><div class="resrow"><span>Equilibrium mode</span><b>Species / activity / Ksp screening</b></div>'+(common?'<div class="resrow"><span>Common ions detected</span><b>'+common+'</b></div>':'')+(kspRows?'<h4>Known Ksp screen</h4>'+kspRows:'')+(speciesRows?'<h4>Speciation</h4>'+speciesRows:'')+(precipRows?'<h4>Predicted precipitation</h4>'+precipRows:'')+multiFlags:'')+
-    (risks?'<h4>Compatibility / precipitation screen</h4>'+risks:'')+warns+
+    (risks?'<h4>Compatibility / precipitation screen</h4>'+risks:'')+
+    (evidenceRows?'<h4>Evidence / References</h4>'+evidenceRows:'')+warns+
     '<div class="lab-model">'+labEsc(d.note)+'</div>';
   renderDissolution(d);renderEvents(d);
 }
