@@ -206,8 +206,9 @@ function renderDissolution(result){
 }
 function renderResult(d){
   $('#labConfidence').textContent=(d.confidence||'screening').toUpperCase();
-  const u=d.mass_balance.undissolved_solids_g;
-  const rows=Object.entries(d.dissolved_g||{}).map(([k,v])=>'<div class="resrow"><span>'+labEsc(materialName(k))+'</span><b>'+v.toFixed(3)+' g</b></div>').join('');
+  const massBalance=d.mass_balance||{};
+  const u=Number(massBalance.undissolved_solids_g||0);
+  const rows=Object.entries(d.dissolved_g||{}).map(([k,v])=>'<div class="resrow"><span>'+labEsc(materialName(k))+'</span><b>'+Number(v||0).toFixed(3)+' g</b></div>').join('');
   const left=Object.entries(d.undissolved_g||{}).map(([k,v])=>'<div class="resrow"><span>'+labEsc(materialName(k))+'</span><b>'+v.toFixed(3)+' g</b></div>').join('');
   const risks=(d.chemistry?.compatibility_risks||[]).map(x=>'<div class="lab-warning">⚗ '+labEsc(x.message)+'</div>').join('');
   const multi=d.chemistry?.multicomponent||null;
