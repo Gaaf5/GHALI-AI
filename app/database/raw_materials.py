@@ -48,7 +48,7 @@ def seed_default_raw_materials(db: Database) -> int:
         "map": {"n_ammoniacal_pct":12.0},
         "mkp": {},
         "sop": {"s_pct":18.0},
-        "KCl (0-0-60)": {"chlorine_pct":47.5},
+        "KCl (0-0-60)": {"chlorine_pct":47.3},
         "Magnesium 33%": {"mg_pct":33.0,"s_pct":18.5},
         "nop": {"n_nitrate_pct":13.5},
         "potassium nitrate": {"n_nitrate_pct":13.5},
@@ -94,7 +94,7 @@ def ensure_extended_nutrient_metadata(db: Database) -> None:
     if not db.get_raw_material("TE-MIX"):
         db.upsert_raw_material("TE-MIX", source="project")
     if not db.get_raw_material("KCl (0-0-60)"):
-        db.upsert_raw_material("KCl (0-0-60)", 0, 0, 60, source="project", chlorine_pct=47.5)
+        db.upsert_raw_material("KCl (0-0-60)", 0, 0, 60, source="project", chlorine_pct=47.3)
         for alias in ALIASES["KCl (0-0-60)"]:
             db.add_raw_material_alias("KCl (0-0-60)", alias)
     if not db.get_raw_material("Magnesium 33%"):
@@ -129,7 +129,7 @@ def ensure_extended_nutrient_metadata(db: Database) -> None:
 
     kcl=db.get_raw_material("KCl (0-0-60)")
     if kcl:
-        db.cursor.execute("UPDATE raw_materials SET n_pct=0,p2o5_pct=0,k2o_pct=60,s_pct=0,mg_pct=0,chlorine_pct=47.5 WHERE id=?", (kcl["id"],))
+        db.cursor.execute("UPDATE raw_materials SET n_pct=0,p2o5_pct=0,k2o_pct=60,s_pct=0,mg_pct=0,chlorine_pct=47.3 WHERE id=?", (kcl["id"],))
     mg=db.get_raw_material("Magnesium 33%")
     if mg:
         db.cursor.execute("UPDATE raw_materials SET n_pct=0,p2o5_pct=0,k2o_pct=0,s_pct=18.5,mg_pct=33.0,chlorine_pct=0 WHERE id=?", (mg["id"],))

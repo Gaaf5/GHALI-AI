@@ -11,7 +11,7 @@ from app.database.raw_materials import ensure_extended_nutrient_metadata
 from app.knowledge.store import KnowledgeStore
 from app.llm.factory import create_llm
 from app.memory import MemoryManager
-from app.tools.formulation import solve_named_formulation
+from app.tools.formulation import solve_named_formulation, analyze_blend_quantities
 from app.tools.lab import catalog as lab_catalog, simulate as lab_simulate
 from app.knowledge.evidence import registry as evidence_registry
 from app.tools.equilibrium_engine import engine_status
@@ -229,6 +229,12 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/formulate':
                 if not self.require('formulation'):return
                 r=solve_named_formulation(str(d['target']),float(d['batch_kg']),list(d['materials']),float(d.get('tolerance_pct',.2)),d.get('limits') or {},d.get('objective'),d.get('fixed_kg') or {}); return self.send_data(200,jb(r))
+            if path=='/api/analyze-blend':
+                if not self.require('formulation'):return
+                quantities=d.get('materials') or {}
+                if not isinstance(quantities,dict): return self.send_data(400,jb({'error':'materials must be an object of material name -> kg'}))
+                r=analyze_blend_quantities(quantities)
+                return self.send_data(200,jb(r))
             if path=='/api/lab/run':
                 u=self.require('chat')
                 if not u:return

@@ -150,6 +150,65 @@ def suggest_additions(selected,all_materials,target,batch,tolerance=0.2,limits=N
         out.sort(key=lambda x:(x["status"]!="FEASIBLE",x["error"]))
     return out[:max_results]
 
+def analyze_blend_quantities(material_quantities):
+    """Reverse formulation: take actual kg of each raw material and calculate the resulting nutrient composition."""
+    db=Database()
+    try:
+        db.create_tables()
+        if not db.list_raw_materials(active_only=True):
+            seed_default_raw_materials(db)
+        quantities={}
+        properties={}
+        unknown=[]
+        for raw_name,raw_mass in (material_quantities or {}).items():
+            mass=float(raw_mass or 0)
+            if mass<0:
+                raise ValueError(f"Quantity cannot be negative: {raw_name}")
+            if mass==0:
+                continue
+            row=db.resolve_raw_material(str(raw_name))
+            if not row:
+                unknown.append(str(raw_name))
+                continue
+            name=row["name"]
+            quantities[name]=quantities.get(name,0.0)+mass
+            properties[name]={
+                "N":float(row.get("n_pct") or 0),
+                "P2O5":float(row.get("p2o5_pct") or 0),
+                "K2O":float(row.get("k2o_pct") or 0),
+                "S":float(row.get("s_pct") or 0),
+                "Mg":float(row.get("mg_pct") or 0),
+                "Cl":float(row.get("chlorine_pct") or 0),
+                "n_nitrate_pct":float(row.get("n_nitrate_pct") or 0),
+                "n_ammoniacal_pct":float(row.get("n_ammoniacal_pct") or 0),
+                "n_urea_pct":float(row.get("n_urea_pct") or 0),
+                "trace_elements":json.loads(row.get("trace_elements_json") or "{}"),
+            }
+        if unknown:
+            raise ValueError("Unknown or inactive raw material(s): "+", ".join(unknown))
+        if not quantities:
+            raise ValueError("Enter at least one material quantity greater than zero.")
+        batch=sum(quantities.values())
+        grades=_grades(list(quantities),list(quantities.values()),properties,batch)
+        breakdown=_nutrient_breakdown(quantities,properties,batch)
+        material_rows=[]
+        for name,mass in quantities.items():
+            p=properties[name]
+            material_rows.append({
+                "name":name,"kg":mass,
+                "N_pct":p["N"],"P2O5_pct":p["P2O5"],"K2O_pct":p["K2O"],
+                "S_pct":p["S"],"Mg_pct":p["Mg"],"Cl_pct":p["Cl"]
+            })
+        return {
+            "status":"ANALYZED",
+            "batch_kg":batch,
+            "materials":material_rows,
+            "achieved":grades,
+            "nutrient_breakdown":breakdown,
+        }
+    finally:
+        db.close()
+
 def solve_named_formulation(target,batch_kg,material_names,tolerance=0.2,limits=None,objective=None,fixed_kg=None):
     tn,tp,tk=_parse_grade(target);db=Database()
     try:
