@@ -10,13 +10,9 @@ DEFAULT_RAW_MATERIALS = (
     RawMaterial("mkp", 0.0, 52.0, 34.0),
     RawMaterial("sop", 0.0, 0.0, 50.0),
     RawMaterial("nop", 13.5, 0.0, 46.0),
-    RawMaterial("potassium nitrate", 13.5, 0.0, 46.0),
     RawMaterial("ammonium nitrate", 34.0),
     RawMaterial("ammonium sulfate", 21.0),
-    RawMaterial("ammonium sulfite", 0.0),
     RawMaterial("urea phosphate", 17.0, 44.0),
-    RawMaterial("bentonite"),
-    RawMaterial("xanthan gum"),
     RawMaterial("TE-MIX"),
 )
 
@@ -81,9 +77,16 @@ def seed_default_raw_materials(db: Database) -> int:
 def ensure_extended_nutrient_metadata(db: Database) -> None:
     """Add nutrient-form materials/metadata without overwriting user NPK data."""
     db.create_tables()
-    for name in ("ammonium sulfite", "TE-MIX"):
-        if not db.get_raw_material(name):
-            db.upsert_raw_material(name, source="project")
+    # Remove materials retired from the formulation selector.
+    retired=("xanthan gum","potassium nitrate","bentonite","ammonium sulfite")
+    for name in retired:
+        row=db.get_raw_material(name)
+        if row:
+            db.cursor.execute("DELETE FROM raw_material_aliases WHERE raw_material_id=?", (row["id"],))
+            db.cursor.execute("DELETE FROM raw_materials WHERE id=?", (row["id"],))
+
+    if not db.get_raw_material("TE-MIX"):
+        db.upsert_raw_material("TE-MIX", source="project")
     metadata={
         "urea":(0,0,46.0,0),
         "map":(0,12.0,0,0),
