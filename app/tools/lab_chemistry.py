@@ -425,6 +425,16 @@ def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_vo
     induction_time_s = max(0.0, float(options.get("induction_time_s", 0.0) or 0.0))
     seed_factor = max(0.0, float(options.get("seed_factor", 1.0) or 0.0))
     surface_factor = max(0.0, float(options.get("surface_factor", 1.0) or 0.0))
+    # Optional experimentally calibrated heterogeneous growth parameters.
+    # k_growth_mol_m2_s and reactive_surface_area_m2 are intentionally optional:
+    # without both, GHALI stays in relative-screening mode and never invents an
+    # absolute precipitation constant.
+    calibrated_k = options.get("k_growth_mol_m2_s")
+    calibrated_area = options.get("reactive_surface_area_m2")
+    calibrated_mode = calibrated_k is not None and calibrated_area is not None
+    if calibrated_mode:
+        calibrated_k = max(0.0, float(calibrated_k))
+        calibrated_area = max(0.0, float(calibrated_area))
     # A deliberately conservative generic screening t95. It is NOT a material
     # property. Stirring modifies the mixing/mass-transfer environment only.
     rpm_factor = 1.0 if rpm <= 0 else max(0.35, min(3.0, (float(rpm) / 300.0) ** 0.5))
@@ -497,19 +507,41 @@ def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_vo
                     rate_multiplier*=float(kinetic_params.get("temperature_factor") or 1.0)
                     rate_multiplier*=float(kinetic_params.get("rpm_factor") or 1.0)
                     rate_multiplier*=max(0.0,seed_factor)*max(0.0,surface_factor)
-                    fraction=1.0-math.exp(-k95*max(0.05,rate_multiplier)*growth_dt) if growth_dt>0 else 0.0
-                    fraction=max(0.0,min(1.0,fraction))
                     before_current=dict(current)
+                    eq_event=next(
+                        (x for x in equilibrium.get("events", [])
+                         if str(x.get("product"))==product), {}
+                    )
+                    # Two modes:
+                    # 1) calibrated heterogeneous growth: dN/dt = k*A*(sqrt(Omega)-1)^n
+                    # 2) relative engineering screen when no calibrated k/A are supplied.
+                    rule_kin=kinetic_params
+                    omega=max(1.0,ratio)
+                    if calibrated_mode and calibrated_k>0 and calibrated_area>0 and growth_dt>0:
+                        nu=max(1,int(len(KSP_RULES[[r["product"] for r in KSP_RULES].index(product)]["ions"])))
+                        driving=max(0.0,omega**(1.0/nu)-1.0)
+                        mol_rate=calibrated_k*calibrated_area*(driving**ss_order)
+                        precip_mol=min(
+                            float(eq_event.get("precipitated_mol") or 0.0),
+                            max(0.0,mol_rate*growth_dt)
+                        )
+                        fraction=(
+                            precip_mol/max(float(eq_event.get("precipitated_mol") or 1.0),1e-12)
+                        )
+                        kinetic_mode="calibrated_surface_growth"
+                    else:
+                        fraction=1.0-math.exp(-k95*max(0.05,rate_multiplier)*growth_dt) if growth_dt>0 else 0.0
+                        fraction=max(0.0,min(1.0,fraction))
+                        precip_mol=float(eq_event.get("precipitated_mol") or 0.0)*fraction
+                        kinetic_mode="relative_screening"
+
                     for mid, possible in potential_removed.items():
                         removed=min(possible, possible*fraction)
                         current[mid]=max(0.0,current[mid]-removed)
                         cumulative_removed[mid]=cumulative_removed.get(mid,0.0)+removed
 
-                    eq_event=next(
-                        (x for x in equilibrium.get("events", [])
-                         if str(x.get("product"))==product), {}
-                    )
-                    removed_product_mass = float(eq_event.get("precipitated_mass_g") or 0.0) * fraction
+                    product_mw=float(eq_event.get("precipitated_mass_g") or 0.0)/max(float(eq_event.get("precipitated_mol") or 1.0),1e-12)
+                    removed_product_mass=precip_mol*product_mw
                     actual_ions = _ion_molarities(current, material_data, solution_volume_l)
                     actual_I = ionic_strength(actual_ions)
                     actual_gammas = {
@@ -543,7 +575,11 @@ def precipitation_kinetic_timeline(kinetic_snapshots, material_data, solution_vo
                             if product in [r["product"] for r in KSP_RULES] else None,
                         "source": screen.get("source"),
                         "kinetic_fraction": round(fraction, 9),
+                        "precipitated_rate_mol_s": round((precip_mol/max(growth_dt,1e-12)) if growth_dt>0 else 0.0, 12),
                         "screening_t95_s": round(screening_t95_s, 6),
+                        "kinetic_mode": kinetic_mode,
+                        "calibrated_k_growth_mol_m2_s": calibrated_k if calibrated_mode else None,
+                        "reactive_surface_area_m2": calibrated_area if calibrated_mode else None,
                         "kinetic_model": kinetic_params.get("model"),
                         "supersaturation_order": round(ss_order, 6),
                         "temperature_factor": round(float(kinetic_params.get("temperature_factor") or 1.0), 6),
