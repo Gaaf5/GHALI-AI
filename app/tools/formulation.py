@@ -1,5 +1,6 @@
 from __future__ import annotations
 import itertools
+import json
 from typing import Mapping
 from scipy.optimize import linprog
 from app.database import Database, seed_default_raw_materials
@@ -63,23 +64,58 @@ def _grades(names,masses,mats,batch):
         for k in NUTRIENTS:total[k]+=m*float(mats[n].get(k,0))/100.0
     return {k:total[k]/batch*100.0 for k in NUTRIENTS}
 
-def _result(status,masses,batch,target,achieved,tol,objective,reason=None):
+def _nutrient_breakdown(masses, properties, batch):
+    total_n=sum(float(masses.get(n,0))*float(p.get("N",0))/100.0 for n,p in properties.items())
+    forms={"nitrate_N":0.0,"ammoniacal_N":0.0,"urea_N":0.0}
+    sulfur=0.0
+    traces={}
+    for name,mass in masses.items():
+        p=properties.get(name,{})
+        factor=float(mass)/100.0
+        forms["nitrate_N"] += factor*float(p.get("n_nitrate_pct",0))
+        forms["ammoniacal_N"] += factor*float(p.get("n_ammoniacal_pct",0))
+        forms["urea_N"] += factor*float(p.get("n_urea_pct",0))
+        sulfur += factor*float(p.get("S",0))
+        for element,pct in (p.get("trace_elements") or {}).items():
+            traces[element]=traces.get(element,0.0)+factor*float(pct)
+    return {
+        "total_N_kg":total_n,
+        "nitrogen_forms_kg":forms,
+        "nitrogen_forms_pct_of_product":{k:v*100.0/max(batch,1e-12) for k,v in forms.items()},
+        "sulfur_kg":sulfur,
+        "sulfur_pct_of_product":sulfur*100.0/max(batch,1e-12),
+        "trace_elements_kg":traces,
+        "trace_elements_pct_of_product":{k:v*100.0/max(batch,1e-12) for k,v in traces.items()},
+    }
+
+def _result(status,masses,batch,target,achieved,tol,objective,reason=None,properties=None):
+    properties=properties or {}
+    breakdown=_nutrient_breakdown(masses,properties,batch)
     return {"status":status,"reason":reason,"tolerance_pct":tol,
             "target_range":{k:{"target":target[i],"min":target[i]-tol,"max":target[i]+tol} for i,k in enumerate(NUTRIENTS)},
             "materials":{n:float(m) for n,m in masses.items() if m>1e-7},"batch_kg":float(batch),
             "target":dict(zip(NUTRIENTS,target)),"achieved":achieved,
             "deviation":{k:achieved[k]-target[i] for i,k in enumerate(NUTRIENTS)},
+            "nutrient_breakdown":breakdown,
             "objective":({"maximize":list(objective[0]),"minimize":list(objective[1])} if objective else None)}
 
-def solve_formulation(target_n,target_p2o5,target_k2o,batch_kg,materials,tolerance=0.2,limits=None,objective=None):
+def solve_formulation(target_n,target_p2o5,target_k2o,batch_kg,materials,tolerance=0.2,limits=None,objective=None,fixed_kg=None):
     if batch_kg<=0:raise ValueError("batch_kg must be positive")
     target=(float(target_n),float(target_p2o5),float(target_k2o));names=list(dict(materials).keys())
+    fixed_kg=fixed_kg or {}
+    limits=dict(limits or {})
+    for name,value in fixed_kg.items():
+        if name not in names:raise ValueError(f"Fixed material must be selected: {name}")
+        q=float(value)
+        if q<0 or q>batch_kg:raise ValueError(f"Invalid fixed quantity for {name}: {q}")
+        limits[name]={"min_kg":q,"max_kg":q}
     x=_exact(names,materials,target,batch_kg,float(tolerance),limits,objective)
-    if x is not None:return _result("FEASIBLE",dict(zip(names,x)),batch_kg,target,_grades(names,x,materials,batch_kg),float(tolerance),objective)
+    if x is not None:return _result("FEASIBLE",dict(zip(names,x)),batch_kg,target,_grades(names,x,materials,batch_kg),float(tolerance),objective,properties=materials)
     x=_closest(names,materials,target,batch_kg,limits)
     if x is None:raise ValueError("No formulation can satisfy the batch mass and the supplied material min/max limits.")
     return _result("NOT_FEASIBLE",dict(zip(names,x)),batch_kg,target,_grades(names,x,materials,batch_kg),float(tolerance),objective,
-                   "The requested formulation cannot be reached with the selected materials and limits. The closest achievable formulation is shown below.")
+                   "The requested formulation cannot be reached with the selected materials and limits. The closest achievable formulation is shown below.",
+                   properties=materials)
 
 def suggest_additions(selected,all_materials,target,batch,tolerance=0.2,limits=None,max_results=5):
     selected=list(dict.fromkeys(selected));available=[n for n in all_materials if n not in selected];out=[]
@@ -101,7 +137,7 @@ def suggest_additions(selected,all_materials,target,batch,tolerance=0.2,limits=N
         out.sort(key=lambda x:(x["status"]!="FEASIBLE",x["error"]))
     return out[:max_results]
 
-def solve_named_formulation(target,batch_kg,material_names,tolerance=0.2,limits=None,objective=None):
+def solve_named_formulation(target,batch_kg,material_names,tolerance=0.2,limits=None,objective=None,fixed_kg=None):
     tn,tp,tk=_parse_grade(target);db=Database()
     try:
         db.create_tables()
@@ -110,7 +146,14 @@ def solve_named_formulation(target,batch_kg,material_names,tolerance=0.2,limits=
         for raw in material_names:
             row=db.resolve_raw_material(raw)
             if not row:unknown.append(raw);continue
-            selected[row["name"]]={"N":float(row["n_pct"]),"P2O5":float(row["p2o5_pct"]),"K2O":float(row["k2o_pct"])}
+            selected[row["name"]]={
+                "N":float(row["n_pct"]),"P2O5":float(row["p2o5_pct"]),"K2O":float(row["k2o_pct"]),
+                "S":float(row.get("s_pct") or 0),
+                "n_nitrate_pct":float(row.get("n_nitrate_pct") or 0),
+                "n_ammoniacal_pct":float(row.get("n_ammoniacal_pct") or 0),
+                "n_urea_pct":float(row.get("n_urea_pct") or 0),
+                "trace_elements":json.loads(row.get("trace_elements_json") or "{}"),
+            }
         if unknown:raise ValueError("Unknown or inactive raw material(s): "+", ".join(unknown))
         if not selected:raise ValueError("At least one active raw material is required")
         cl={}
@@ -138,7 +181,13 @@ def solve_named_formulation(target,batch_kg,material_names,tolerance=0.2,limits=
                 if material in (min_raw or []) and row["name"] not in resolved_min: resolved_min.append(row["name"])
             if set(resolved_max)&set(resolved_min): raise ValueError("A material cannot be both maximized and minimized.")
             if resolved_max or resolved_min: obj=(resolved_max,resolved_min)
-        result=solve_formulation(tn,tp,tk,batch_kg,selected,tolerance,cl,obj)
+        fixed={}
+        for name,value in (fixed_kg or {}).items():
+            row=db.resolve_raw_material(name)
+            if not row:raise ValueError(f"Fixed material was not found: {name}")
+            if row["name"] not in selected:raise ValueError(f"Fixed material must be selected: {row['name']}")
+            fixed[row["name"]]=float(value)
+        result=solve_formulation(tn,tp,tk,batch_kg,selected,tolerance,cl,obj,fixed)
         if result["status"]=="NOT_FEASIBLE":
             rows=db.list_raw_materials(active_only=True)
             allm={r["name"]:{"N":float(r["n_pct"]),"P2O5":float(r["p2o5_pct"]),"K2O":float(r["k2o_pct"])} for r in rows}

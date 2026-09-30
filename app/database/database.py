@@ -1,4 +1,5 @@
 ﻿import sqlite3
+import json
 from pathlib import Path
 
 from app.core.settings import DATABASE_PATH
@@ -28,6 +29,11 @@ class Database:
             k2o_pct REAL NOT NULL DEFAULT 0,
             moisture_pct REAL,
             assay_pct REAL,
+            s_pct REAL NOT NULL DEFAULT 0,
+            n_nitrate_pct REAL NOT NULL DEFAULT 0,
+            n_ammoniacal_pct REAL NOT NULL DEFAULT 0,
+            n_urea_pct REAL NOT NULL DEFAULT 0,
+            trace_elements_json TEXT NOT NULL DEFAULT '{}',
             source TEXT NOT NULL DEFAULT 'project',
             active INTEGER NOT NULL DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -71,21 +77,38 @@ class Database:
             FOREIGN KEY(raw_material_id) REFERENCES raw_materials(id)
         );
         """)
+        # Lightweight migration for databases created before nutrient-form tracking.
+        existing={r[1] for r in self.cursor.execute("PRAGMA table_info(raw_materials)").fetchall()}
+        migrations={
+            "s_pct":"ALTER TABLE raw_materials ADD COLUMN s_pct REAL NOT NULL DEFAULT 0",
+            "n_nitrate_pct":"ALTER TABLE raw_materials ADD COLUMN n_nitrate_pct REAL NOT NULL DEFAULT 0",
+            "n_ammoniacal_pct":"ALTER TABLE raw_materials ADD COLUMN n_ammoniacal_pct REAL NOT NULL DEFAULT 0",
+            "n_urea_pct":"ALTER TABLE raw_materials ADD COLUMN n_urea_pct REAL NOT NULL DEFAULT 0",
+            "trace_elements_json":"ALTER TABLE raw_materials ADD COLUMN trace_elements_json TEXT NOT NULL DEFAULT '{}'",
+        }
+        for column,sql in migrations.items():
+            if column not in existing:self.cursor.execute(sql)
         self.connection.commit()
 
     def upsert_raw_material(self, name, n_pct=0, p2o5_pct=0, k2o_pct=0,
-                            moisture_pct=None, assay_pct=None,
-                            source="project", active=True):
+                            moisture_pct=None, assay_pct=None, source="project",
+                            active=True, s_pct=0, n_nitrate_pct=0,
+                            n_ammoniacal_pct=0, n_urea_pct=0, trace_elements=None):
         self.cursor.execute("""
             INSERT INTO raw_materials
-                (name, n_pct, p2o5_pct, k2o_pct, moisture_pct, assay_pct, source, active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (name,n_pct,p2o5_pct,k2o_pct,moisture_pct,assay_pct,s_pct,
+                 n_nitrate_pct,n_ammoniacal_pct,n_urea_pct,trace_elements_json,source,active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
-                n_pct=excluded.n_pct, p2o5_pct=excluded.p2o5_pct,
-                k2o_pct=excluded.k2o_pct, moisture_pct=excluded.moisture_pct,
-                assay_pct=excluded.assay_pct, source=excluded.source,
-                active=excluded.active, updated_at=CURRENT_TIMESTAMP
-        """, (name, n_pct, p2o5_pct, k2o_pct, moisture_pct, assay_pct, source, int(active)))
+                n_pct=excluded.n_pct,p2o5_pct=excluded.p2o5_pct,k2o_pct=excluded.k2o_pct,
+                moisture_pct=excluded.moisture_pct,assay_pct=excluded.assay_pct,
+                s_pct=excluded.s_pct,n_nitrate_pct=excluded.n_nitrate_pct,
+                n_ammoniacal_pct=excluded.n_ammoniacal_pct,n_urea_pct=excluded.n_urea_pct,
+                trace_elements_json=excluded.trace_elements_json,source=excluded.source,
+                active=excluded.active,updated_at=CURRENT_TIMESTAMP
+        """, (name,n_pct,p2o5_pct,k2o_pct,moisture_pct,assay_pct,s_pct,
+              n_nitrate_pct,n_ammoniacal_pct,n_urea_pct,
+              json.dumps(trace_elements or {},ensure_ascii=False),source,int(active)))
         self.connection.commit()
 
     def list_raw_materials(self, active_only=True):

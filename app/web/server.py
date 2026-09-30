@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from app.brain.brain import Brain
 from app.database import Database, seed_default_raw_materials
+from app.database.raw_materials import ensure_extended_nutrient_metadata
 from app.knowledge.store import KnowledgeStore
 from app.llm.factory import create_llm
 from app.memory import MemoryManager
@@ -31,6 +32,7 @@ class GHALIServer:
     def __init__(self):
         self.db=Database(); self.db.create_tables()
         if not self.db.list_raw_materials(): seed_default_raw_materials(self.db)
+        ensure_extended_nutrient_metadata(self.db)
         self.memory=MemoryManager(); self.knowledge=KnowledgeStore(); self.brain=Brain(create_llm(),self.knowledge,self.memory)
         self.auth=AuthManager(self.db)
         self.auth.ensure_admin(os.getenv('GHALI_ADMIN_USER','ghaly'),os.getenv('GHALI_ADMIN_PASSWORD',''))
@@ -226,7 +228,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(200,jb({'reply':reply,'conversation_id':cid}))
             if path=='/api/formulate':
                 if not self.require('formulation'):return
-                r=solve_named_formulation(str(d['target']),float(d['batch_kg']),list(d['materials']),float(d.get('tolerance_pct',.2)),d.get('limits') or {},d.get('objective')); return self.send_data(200,jb(r))
+                r=solve_named_formulation(str(d['target']),float(d['batch_kg']),list(d['materials']),float(d.get('tolerance_pct',.2)),d.get('limits') or {},d.get('objective'),d.get('fixed_kg') or {}); return self.send_data(200,jb(r))
             if path=='/api/lab/run':
                 u=self.require('chat')
                 if not u:return
@@ -323,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(200,jb(STATE.db.list_lab_experiments(u['id'])))
             if path=='/api/materials':
                 if not self.require('materials_admin'):return
-                STATE.db.upsert_raw_material(d['name'],float(d.get('n_pct',0)),float(d.get('p2o5_pct',0)),float(d.get('k2o_pct',0)),d.get('moisture_pct'),d.get('assay_pct'),d.get('source','user'),bool(d.get('active',True))); return self.send_data(200,jb(STATE.db.list_raw_materials()))
+                STATE.db.upsert_raw_material(d['name'],float(d.get('n_pct',0)),float(d.get('p2o5_pct',0)),float(d.get('k2o_pct',0)),d.get('moisture_pct'),d.get('assay_pct'),d.get('source','user'),bool(d.get('active',True)),float(d.get('s_pct',0)),float(d.get('n_nitrate_pct',0)),float(d.get('n_ammoniacal_pct',0)),float(d.get('n_urea_pct',0)),d.get('trace_elements') or {}); return self.send_data(200,jb(STATE.db.list_raw_materials()))
             if path=='/api/materials/alias':
                 if not self.require('materials_admin'):return
                 STATE.db.add_raw_material_alias(d['material'],d['alias']); return self.send_data(200,jb({'ok':True}))
