@@ -599,7 +599,11 @@ def simulate(experiment: dict[str,Any]) -> dict[str,Any]:
                 tau=1.0/max(k_interval,1e-12)
                 for sub_i in range(substeps):
                     dmass += (target_capacity-dmass)*(1-math.exp(-k_interval*dt_step))
-                    if target_capacity >= mass and dt_step >= 5.0*tau and dmass >= target_capacity:
+                    # Treat a numerically negligible residual as equilibrium reached.
+                    # This prevents the exponential tail from reporting tiny solid
+                    # residue after many time constants at a fully soluble target.
+                    residual=max(0.0,target_capacity-dmass)
+                    if target_capacity >= mass and residual <= max(1e-6, mass*1e-5):
                         dmass=target_capacity
                     dmass=max(0.0,min(mass,dmass))
                     t_snapshot=interval_start+(sub_i+1)*dt_step
