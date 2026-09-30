@@ -1,3 +1,5 @@
+import json
+
 from .database import Database
 from .models import RawMaterial
 
@@ -52,7 +54,19 @@ def seed_default_raw_materials(db: Database) -> int:
         "ammonium sulfate": {"n_ammoniacal_pct":21.0,"s_pct":23.5},
         "ammonium sulfite": {"s_pct":24.0},
         "urea phosphate": {"n_urea_pct":17.0},
-        "TE-MIX": {},
+        # Trace-element composition is stored exactly as supplied by the project,
+        # expressed as % of TE-MIX product. Therefore 1 kg TE-MIX contains:
+        # B 0.80 g, Cu 2.60 g, Fe 5.10 g, Mn 2.60 g, Zn 2.60 g, Mo 0.05 g.
+        "TE-MIX": {
+            "trace_elements": {
+                "B": 0.080,
+                "Cu-EDTA": 0.260,
+                "Fe-EDTA": 0.510,
+                "Mn-EDTA": 0.260,
+                "Zn-EDTA": 0.260,
+                "Mo": 0.005,
+            }
+        },
     }
     for name,meta in forms.items():
         row=db.resolve_raw_material(name)
@@ -92,5 +106,21 @@ def ensure_extended_nutrient_metadata(db: Database) -> None:
                s_pct=CASE WHEN s_pct=0 THEN ? ELSE s_pct END
                WHERE id=?""",
             (nn,na,nu,s,row["id"])
+        )
+
+    # Project-supplied TE-MIX trace analysis. Keep the percentages exactly as
+    # provided; they are elemental/product percentages, not ppm replacements.
+    te_mix=db.get_raw_material("TE-MIX")
+    if te_mix:
+        db.cursor.execute(
+            "UPDATE raw_materials SET trace_elements_json=? WHERE id=?",
+            (json.dumps({
+                "B":0.080,
+                "Cu-EDTA":0.260,
+                "Fe-EDTA":0.510,
+                "Mn-EDTA":0.260,
+                "Zn-EDTA":0.260,
+                "Mo":0.005,
+            }, ensure_ascii=False), te_mix["id"])
         )
     db.connection.commit()
