@@ -34,6 +34,8 @@ class Database:
             n_ammoniacal_pct REAL NOT NULL DEFAULT 0,
             n_urea_pct REAL NOT NULL DEFAULT 0,
             trace_elements_json TEXT NOT NULL DEFAULT '{}',
+            mg_pct REAL NOT NULL DEFAULT 0,
+            chlorine_pct REAL NOT NULL DEFAULT 0,
             source TEXT NOT NULL DEFAULT 'project',
             active INTEGER NOT NULL DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -85,6 +87,8 @@ class Database:
             "n_ammoniacal_pct":"ALTER TABLE raw_materials ADD COLUMN n_ammoniacal_pct REAL NOT NULL DEFAULT 0",
             "n_urea_pct":"ALTER TABLE raw_materials ADD COLUMN n_urea_pct REAL NOT NULL DEFAULT 0",
             "trace_elements_json":"ALTER TABLE raw_materials ADD COLUMN trace_elements_json TEXT NOT NULL DEFAULT '{}'",
+            "mg_pct":"ALTER TABLE raw_materials ADD COLUMN mg_pct REAL NOT NULL DEFAULT 0",
+            "chlorine_pct":"ALTER TABLE raw_materials ADD COLUMN chlorine_pct REAL NOT NULL DEFAULT 0",
         }
         for column,sql in migrations.items():
             if column not in existing:self.cursor.execute(sql)
@@ -93,22 +97,23 @@ class Database:
     def upsert_raw_material(self, name, n_pct=0, p2o5_pct=0, k2o_pct=0,
                             moisture_pct=None, assay_pct=None, source="project",
                             active=True, s_pct=0, n_nitrate_pct=0,
-                            n_ammoniacal_pct=0, n_urea_pct=0, trace_elements=None):
+                            n_ammoniacal_pct=0, n_urea_pct=0, trace_elements=None, mg_pct=0, chlorine_pct=0):
         self.cursor.execute("""
             INSERT INTO raw_materials
                 (name,n_pct,p2o5_pct,k2o_pct,moisture_pct,assay_pct,s_pct,
-                 n_nitrate_pct,n_ammoniacal_pct,n_urea_pct,trace_elements_json,source,active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 n_nitrate_pct,n_ammoniacal_pct,n_urea_pct,trace_elements_json,mg_pct,chlorine_pct,source,active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
                 n_pct=excluded.n_pct,p2o5_pct=excluded.p2o5_pct,k2o_pct=excluded.k2o_pct,
                 moisture_pct=excluded.moisture_pct,assay_pct=excluded.assay_pct,
                 s_pct=excluded.s_pct,n_nitrate_pct=excluded.n_nitrate_pct,
                 n_ammoniacal_pct=excluded.n_ammoniacal_pct,n_urea_pct=excluded.n_urea_pct,
-                trace_elements_json=excluded.trace_elements_json,source=excluded.source,
+                trace_elements_json=excluded.trace_elements_json,mg_pct=excluded.mg_pct,
+                chlorine_pct=excluded.chlorine_pct,source=excluded.source,
                 active=excluded.active,updated_at=CURRENT_TIMESTAMP
         """, (name,n_pct,p2o5_pct,k2o_pct,moisture_pct,assay_pct,s_pct,
               n_nitrate_pct,n_ammoniacal_pct,n_urea_pct,
-              json.dumps(trace_elements or {},ensure_ascii=False),source,int(active)))
+              json.dumps(trace_elements or {},ensure_ascii=False),mg_pct,chlorine_pct,source,int(active)))
         self.connection.commit()
 
     def list_raw_materials(self, active_only=True):

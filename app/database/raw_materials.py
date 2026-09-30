@@ -9,6 +9,8 @@ DEFAULT_RAW_MATERIALS = (
     RawMaterial("map", 12.0, 61.0),
     RawMaterial("mkp", 0.0, 52.0, 34.0),
     RawMaterial("sop", 0.0, 0.0, 50.0),
+    RawMaterial("KCl (0-0-60)", 0.0, 0.0, 60.0),
+    RawMaterial("Magnesium 33%", 0.0, 0.0, 0.0),
     RawMaterial("nop", 13.5, 0.0, 46.0),
     RawMaterial("ammonium nitrate", 34.0),
     RawMaterial("ammonium sulfate", 21.0),
@@ -19,6 +21,8 @@ DEFAULT_RAW_MATERIALS = (
 ALIASES = {
     "urea": ["يوريا", "اليوريا"], "map": ["ماب", "اماب"],
     "mkp": ["ام كي بي", "MKP"], "sop": ["سوب", "كبريتات البوتاسيوم", "كبريتات بوتاسيوم"],
+    "KCl (0-0-60)": ["KCl", "كلوريد البوتاسيوم", "كلوريد بوتاسيوم", "MOP"],
+    "Magnesium 33%": ["مغنيسيوم 33%", "Magnesium 33"],
     "nop": ["نوب"], "potassium nitrate": ["kno3", "نترات البوتاسيوم", "نترات بوتاسيوم"],
     "ammonium nitrate": ["نترات الأمونيوم", "نترات الامونيوم"],
     "ammonium sulfate": ["(nh4)2so4", "كبريتات الأمونيوم", "كبريتات الامونيوم"],
@@ -44,6 +48,8 @@ def seed_default_raw_materials(db: Database) -> int:
         "map": {"n_ammoniacal_pct":12.0},
         "mkp": {},
         "sop": {"s_pct":18.0},
+        "KCl (0-0-60)": {"chlorine_pct":47.5},
+        "Magnesium 33%": {"mg_pct":33.0,"s_pct":18.5},
         "nop": {"n_nitrate_pct":13.5},
         "potassium nitrate": {"n_nitrate_pct":13.5},
         "ammonium nitrate": {"n_nitrate_pct":17.0,"n_ammoniacal_pct":17.0},
@@ -87,10 +93,20 @@ def ensure_extended_nutrient_metadata(db: Database) -> None:
 
     if not db.get_raw_material("TE-MIX"):
         db.upsert_raw_material("TE-MIX", source="project")
+    if not db.get_raw_material("KCl (0-0-60)"):
+        db.upsert_raw_material("KCl (0-0-60)", 0, 0, 60, source="project", chlorine_pct=47.5)
+        for alias in ALIASES["KCl (0-0-60)"]:
+            db.add_raw_material_alias("KCl (0-0-60)", alias)
+    if not db.get_raw_material("Magnesium 33%"):
+        db.upsert_raw_material("Magnesium 33%", 0, 0, 0, source="project", s_pct=18.5, mg_pct=33.0)
+        for alias in ALIASES["Magnesium 33%"]:
+            db.add_raw_material_alias("Magnesium 33%", alias)
     metadata={
         "urea":(0,0,46.0,0),
         "map":(0,12.0,0,0),
         "sop":(0,0,0,18.0),
+        "KCl (0-0-60)":(0,0,0,0),
+        "Magnesium 33%":(0,0,0,18.5),
         "nop":(13.5,0,0,0),
         "potassium nitrate":(13.5,0,0,0),
         "ammonium nitrate":(17.0,17.0,0,0),
@@ -111,6 +127,12 @@ def ensure_extended_nutrient_metadata(db: Database) -> None:
             (nn,na,nu,s,row["id"])
         )
 
+    kcl=db.get_raw_material("KCl (0-0-60)")
+    if kcl:
+        db.cursor.execute("UPDATE raw_materials SET n_pct=0,p2o5_pct=0,k2o_pct=60,s_pct=0,mg_pct=0,chlorine_pct=47.5 WHERE id=?", (kcl["id"],))
+    mg=db.get_raw_material("Magnesium 33%")
+    if mg:
+        db.cursor.execute("UPDATE raw_materials SET n_pct=0,p2o5_pct=0,k2o_pct=0,s_pct=18.5,mg_pct=33.0,chlorine_pct=0 WHERE id=?", (mg["id"],))
     # Project-supplied TE-MIX trace analysis. Keep the percentages exactly as
     # provided; they are elemental/product percentages, not ppm replacements.
     te_mix=db.get_raw_material("TE-MIX")

@@ -68,7 +68,10 @@ def _nutrient_breakdown(masses, properties, batch):
     total_n=sum(float(masses.get(n,0))*float(p.get("N",0))/100.0 for n,p in properties.items())
     forms={"nitrate_N":0.0,"ammoniacal_N":0.0,"urea_N":0.0}
     sulfur=0.0
+    magnesium=0.0
+    chlorine=0.0
     traces={}
+    te_mix_trace_pct={}
     for name,mass in masses.items():
         p=properties.get(name,{})
         factor=float(mass)/100.0
@@ -76,16 +79,26 @@ def _nutrient_breakdown(masses, properties, batch):
         forms["ammoniacal_N"] += factor*float(p.get("n_ammoniacal_pct",0))
         forms["urea_N"] += factor*float(p.get("n_urea_pct",0))
         sulfur += factor*float(p.get("S",0))
+        magnesium += factor*float(p.get("Mg",0))
+        chlorine += factor*float(p.get("Cl",0))
         for element,pct in (p.get("trace_elements") or {}).items():
             traces[element]=traces.get(element,0.0)+factor*float(pct)
+            if name.lower()=="te-mix":
+                te_mix_trace_pct[element]=float(pct)
     return {
         "total_N_kg":total_n,
         "nitrogen_forms_kg":forms,
         "nitrogen_forms_pct_of_product":{k:v*100.0/max(batch,1e-12) for k,v in forms.items()},
         "sulfur_kg":sulfur,
         "sulfur_pct_of_product":sulfur*100.0/max(batch,1e-12),
+        "magnesium_kg":magnesium,
+        "magnesium_pct_of_product":magnesium*100.0/max(batch,1e-12),
+        "chlorine_kg":chlorine,
+        "chlorine_pct_of_product":chlorine*100.0/max(batch,1e-12),
         "trace_elements_kg":traces,
         "trace_elements_pct_of_product":{k:v*100.0/max(batch,1e-12) for k,v in traces.items()},
+        "te_mix_trace_elements_pct":te_mix_trace_pct,
+        "te_mix_trace_elements_ppm":{k:v*100.0 for k,v in te_mix_trace_pct.items()},
     }
 
 def _result(status,masses,batch,target,achieved,tol,objective,reason=None,properties=None):
@@ -149,6 +162,8 @@ def solve_named_formulation(target,batch_kg,material_names,tolerance=0.2,limits=
             selected[row["name"]]={
                 "N":float(row["n_pct"]),"P2O5":float(row["p2o5_pct"]),"K2O":float(row["k2o_pct"]),
                 "S":float(row.get("s_pct") or 0),
+                "Mg":float(row.get("mg_pct") or 0),
+                "Cl":float(row.get("chlorine_pct") or 0),
                 "n_nitrate_pct":float(row.get("n_nitrate_pct") or 0),
                 "n_ammoniacal_pct":float(row.get("n_ammoniacal_pct") or 0),
                 "n_urea_pct":float(row.get("n_urea_pct") or 0),

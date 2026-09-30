@@ -325,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(200,jb(STATE.db.list_lab_experiments(u['id'])))
             if path=='/api/materials':
                 if not self.require('materials_admin'):return
-                STATE.db.upsert_raw_material(d['name'],float(d.get('n_pct',0)),float(d.get('p2o5_pct',0)),float(d.get('k2o_pct',0)),d.get('moisture_pct'),d.get('assay_pct'),d.get('source','user'),bool(d.get('active',True)),float(d.get('s_pct',0)),float(d.get('n_nitrate_pct',0)),float(d.get('n_ammoniacal_pct',0)),float(d.get('n_urea_pct',0)),d.get('trace_elements') or {}); return self.send_data(200,jb(STATE.db.list_raw_materials()))
+                STATE.db.upsert_raw_material(d['name'],float(d.get('n_pct',0)),float(d.get('p2o5_pct',0)),float(d.get('k2o_pct',0)),d.get('moisture_pct'),d.get('assay_pct'),d.get('source','user'),bool(d.get('active',True)),float(d.get('s_pct',0)),float(d.get('n_nitrate_pct',0)),float(d.get('n_ammoniacal_pct',0)),float(d.get('n_urea_pct',0)),d.get('trace_elements') or {},float(d.get('mg_pct',0)),float(d.get('chlorine_pct',0))); return self.send_data(200,jb(STATE.db.list_raw_materials()))
             if path=='/api/materials/alias':
                 if not self.require('materials_admin'):return
                 STATE.db.add_raw_material_alias(d['material'],d['alias']); return self.send_data(200,jb({'ok':True}))
