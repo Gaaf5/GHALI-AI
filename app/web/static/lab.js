@@ -233,8 +233,10 @@ function renderResult(d){
     '<div class="resrow"><span>Ionic strength</span><b>'+Number(q.ionic_strength_m||0).toFixed(3)+' M</b></div>'+
     '<div class="resrow"><span>Activity model</span><b>'+labEsc(qModel.activity_model||qModel.engine||'screening')+'</b></div>'+
     (plans?'<h4>Recommended Verification Experiments</h4>'+plans:'');
-  $('#labResult').innerHTML='<div class="lab-kpis"><div><span>Uniformity</span><b>'+d.mixing_uniformity_pct.toFixed(1)+'%</b></div>'+
-    '<div><span>Undissolved</span><b>'+u.toFixed(2)+' g</b></div><div><span>Solvent volume</span><b>'+(Number.isFinite(solventVol)?Number(solventVol).toFixed(3):'—')+' L</b></div><div><span>Density</span><b>'+d.estimated_density_g_ml.toFixed(3)+' g/mL</b></div></div>'+
+  const uniformity=Number(d.mixing_uniformity_pct??0);
+  const density=Number(d.estimated_density_g_ml??0);
+  $('#labResult').innerHTML='<div class="lab-kpis"><div><span>Uniformity</span><b>'+uniformity.toFixed(1)+'%</b></div>'+
+    '<div><span>Undissolved</span><b>'+u.toFixed(2)+' g</b></div><div><span>Solvent volume</span><b>'+(Number.isFinite(solventVol)?Number(solventVol).toFixed(3):'—')+' L</b></div><div><span>Density</span><b>'+density.toFixed(3)+' g/mL</b></div></div>'+
     '<h4>Dissolved</h4>'+rows+(blends?'<h4>Liquid blending / homogenization</h4>'+blends:'')+(left?'<h4>Undissolved / precipitate</h4>'+left:'')+
     (multi?'<h4>Multicomponent solution screen</h4>'+phRow+'<div class="resrow"><span>Ionic strength</span><b>'+Number(multi.ionic_strength_mol_L||0).toFixed(4)+' mol/L</b></div><div class="resrow"><span>Equilibrium mode</span><b>Species / activity / Ksp screening</b></div>'+(common?'<div class="resrow"><span>Common ions detected</span><b>'+common+'</b></div>':'')+(kspRows?'<h4>Known Ksp screen</h4>'+kspRows:'')+(speciesRows?'<h4>Speciation</h4>'+speciesRows:'')+(precipRows?'<h4>Predicted precipitation</h4>'+precipRows:'')+multiFlags:'')+
     (risks?'<h4>Compatibility / precipitation screen</h4>'+risks:'')+
