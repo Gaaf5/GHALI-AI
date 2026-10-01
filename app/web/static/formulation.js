@@ -28,14 +28,14 @@ async function createProductionOrder(d){
 }
 let lastFormulation=null;
 const renderWithPO=renderFormulationResult;
-renderFormulationResult=function(d){lastFormulation=d;renderWithPO(d)};
-const poObserver=new MutationObserver(()=>{
+renderFormulationResult=function(d){
+  lastFormulation=d;renderWithPO(d);
   const box=$('#formResult');
-  if(!box||!lastFormulation||$('#createPO'))return;
-  box.insertAdjacentHTML('beforeend','<div style="margin-top:16px"><button type="button" class="primary" id="createPO">P.O — PRODUCTION ORDER</button></div>');
-  $('#createPO').onclick=()=>createProductionOrder(lastFormulation);
-});
-poObserver.observe($('#formResult'),{childList:true});
+  if(box&&!$('#createPO')){
+    box.insertAdjacentHTML('beforeend','<div style="margin-top:16px"><button type="button" class="primary" id="createPO">P.O — PRODUCTION ORDER</button></div>');
+    $('#createPO').onclick=async()=>{try{await createProductionOrder(lastFormulation)}catch(e){alert(e.message)}};
+  }
+};
 
 $('#solve').onclick=async()=>{try{let selected=selectedMaterials();const teMixQty=+$('#teMixQty').value||0;if(teMixQty<0)throw Error('TE-MIX quantity cannot be negative.');if(teMixQty>+$('#batch').value)throw Error('TE-MIX quantity cannot exceed batch mass.');if(teMixQty>0&&!selected.includes('TE-MIX'))selected=[...selected,'TE-MIX'];if(!selected.length)throw Error('Select at least one raw material or enter a TE-MIX quantity.');const objective=optimizationPayload();const fixed_kg=teMixQty>0?{'TE-MIX':teMixQty}:{};const d=await api('/api/formulate',{method:'POST',body:JSON.stringify({target:`${$('#gradeN').value}-${$('#gradeP').value}-${$('#gradeK').value}`,batch_kg:+$('#batch').value,materials:selected,tolerance_pct:+$('#tolerance').value||0,limits:limitsPayload(),objective,fixed_kg})});renderFormulationResult(d)}catch(e){$('#formResult').innerHTML=`<div class="bad">${esc(e.message)}</div>`}}
 $('#addMaterial').onclick=()=>{editingMaterial=null;$('#modal h3').textContent='Add Raw Material';$('#saveMaterial').textContent='Save';$('#mName').value='';$('#mN').value='';$('#mP').value='';$('#mK').value='';$('#mS').value='';$('#mMg').value='';$('#mCl').value='';$('#mNitrate').value='';$('#mAmmonia').value='';$('#mUreaN').value='';$('#mTrace').value='{}';$('#mMoist').value='';$('#mAssay').value='';$('#mSource').value='';$('#mActive').checked=true;$('#modal').classList.remove('hidden');$('#modalError').textContent=''};$('#closeModal').onclick=()=>$('#modal').classList.add('hidden');
