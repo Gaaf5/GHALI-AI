@@ -47,6 +47,16 @@ def jb(data): return json.dumps(data,ensure_ascii=False).encode('utf-8')
 
 def build_production_order(payload):
     from openpyxl import Workbook
+    def excel_value(value):
+        if isinstance(value, (dict, list, tuple, set)):
+            return json.dumps(value, ensure_ascii=False, separators=(',', ':'))
+        return value
+    def formula_value(value):
+        if isinstance(value, dict):
+            n=value.get('N'); p=value.get('P2O5', value.get('P')); k=value.get('K2O', value.get('K'))
+            if n is not None and p is not None and k is not None:
+                return f'{n}-{p}-{k}'
+        return excel_value(value)
     from openpyxl.styles import Font, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
@@ -64,7 +74,7 @@ def build_production_order(payload):
     ws.merge_cells('B1:F1'); ws['B1']='Manaseer Natural Solutions MNS Factory'; ws['B1'].font=title; ws['B1'].alignment=center
     ws['A3']='Production Report'; ws['A3'].font=Font(bold=True,size=14)
     ws['A4']='Date: '+str(payload.get('date') or date.today().strftime('%d/%m/%Y'))
-    ws['B6']='Formula:-'; ws['C6']=payload.get('formula','')
+    ws['B6']='Formula:-'; ws['C6']=formula_value(payload.get('formula',''))
     ws['B9']='Kg / batch:-'; ws['C9']=float(payload.get('batch_kg') or 0)
     ws['B10']='Order no.:-'; ws['C10']=payload.get('order_no','')
     ws['B11']='Required quantity(ton)'; ws['C11']=float(payload.get('required_ton') or 0)
@@ -81,7 +91,7 @@ def build_production_order(payload):
     row=18
     for name,kg in materials.items():
         kg=float(kg or 0)
-        ws.cell(row,2,name); ws.cell(row,3,kg*1000/max(float(payload.get('batch_kg') or 1),1))
+        ws.cell(row,2,excel_value(name)); ws.cell(row,3,kg*1000/max(float(payload.get('batch_kg') or 1),1))
         ws.cell(row,4,kg); ws.cell(row,5,f'=D{row}*$C$12'); ws.cell(row,6,f'=E{row}')
         row+=1
     while row<=23:
