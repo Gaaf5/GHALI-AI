@@ -16,9 +16,8 @@ async function createProductionOrder(d){
   const body={
     formula:d.target||`${$('#gradeN').value}-${$('#gradeP').value}-${$('#gradeK').value}`,
     batch_kg:d.batch_kg||+$('#batch').value||0,
+    base_kg:d.batch_kg||+$('#batch').value||0,
     materials:d.materials||{},
-    required_ton:(d.batch_kg||+$('#batch').value||0)/1000,
-    batches:1,
     te_mix_kg_per_ton:(d.materials||{})['TE-MIX']?((d.materials||{})['TE-MIX']*1000/(d.batch_kg||+$('#batch').value||1)):0
   };
   const r=await fetch('/api/production-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});

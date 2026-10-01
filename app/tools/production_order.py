@@ -28,9 +28,11 @@ def build_production_order(payload):
     if isinstance(formula, dict):
         formula = f"{formula.get('N', 0)}-{formula.get('P2O5', formula.get('P', 0))}-{formula.get('K2O', formula.get('K', 0))}"
 
-    batch = _num(payload.get("batch_kg"))
-    required = _num(payload.get("required_ton"))
-    batches = _num(payload.get("batches"), 1.0) or 1.0
+    # `base_kg` is the quantity the formulation was originally calculated on.
+    # `batch_kg` is the mixer capacity (KG / batch) and may be changed in the P.O.
+    base_kg = _num(payload.get("base_kg"), _num(payload.get("batch_kg")))
+    batch = _num(payload.get("batch_kg"), base_kg)
+    required = base_kg
 
     # Header fields. The cells containing explanatory notes in the original
     # template are deliberately overwritten/cleared in the final document.
@@ -42,7 +44,9 @@ def build_production_order(payload):
     ws["C10"] = payload.get("order_no", "")
     ws["D10"] = payload.get("brand") or payload.get("bag_type", "")
     ws["C11"] = required
-    ws["C12"] = batches
+    # Number of batches must follow the requested quantity and the mixer capacity.
+    # This remains editable/dynamic if KG / batch (C9) is changed in Excel.
+    ws["C12"] = "=IFERROR(C11/C9,0)"
     ws["C13"] = "=C9*C12"
 
     # Raw-material table in the original template has six rows (18:23).
@@ -82,7 +86,8 @@ def build_production_order(payload):
             ws.cell(r, c).value = None
     for idx, (name, kg_batch) in enumerate(raw, start=18):
         ws.cell(idx, 2).value = name
-        ws.cell(idx, 3).value = kg_batch * 1000.0 / batch if batch else 0
+        # Kg / ton is based on the original formulation basis, not mixer capacity.
+        ws.cell(idx, 3).value = kg_batch * 1000.0 / base_kg if base_kg else 0
         ws.cell(idx, 4).value = f"=C{idx}*$C$9/1000"
         ws.cell(idx, 5).value = f"=D{idx}*$C$12"
         ws.cell(idx, 6).value = None
@@ -137,8 +142,12 @@ def build_production_order(payload):
     ws.cell(total, 2).value = "Total"
     ws.cell(total, 3).value = f"=SUM(C{subtotal}:C{rr(38)})"
     ws.cell(total, 4).value = f"=C{total}*$C$9/1000"
-    ws.cell(total, 5).value = f"=SUM(E{subtotal}:E{rr(38)})"
+    # Total theo. is the requested production quantity (the formulation basis).
+    ws.cell(total, 5).value = f"=D{total}*$C$12"
     ws.cell(total, 6).value = None
+
+    # Keep the lower Total row tied to the original formulation basis (e.g. 1000 kg).
+    # Changing KG / batch only changes D and the calculated number of batches.
 
     # Remove every instructional annotation from the supplied template.
     for cell in ("C6", "D6", "C9", "D9", "C10", "D10", "C11", "C12",
