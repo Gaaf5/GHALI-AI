@@ -2,6 +2,8 @@ import json
 import os
 import time
 import threading
+from io import BytesIO
+from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -42,6 +44,76 @@ class GHALIServer:
         return {'app':'GHALI AI','version':'0.4.0','model':model,'materials':len(self.db.list_raw_materials()),'knowledge':len(self.knowledge.list_documents()),'memory':self.memory.count()}
 
 def jb(data): return json.dumps(data,ensure_ascii=False).encode('utf-8')
+
+def build_production_order(payload):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb=Workbook(); ws=wb.active; ws.title='Production Order'
+    ws.sheet_view.showGridLines=False
+    widths={1:13,2:28,3:15,4:15,5:15,6:15,7:16}
+    for col,w in widths.items(): ws.column_dimensions[get_column_letter(col)].width=w
+    thin=Side(style='thin',color='808080')
+    border=Border(left=thin,right=thin,top=thin,bottom=thin)
+    bold=Font(bold=True)
+    title=Font(bold=True,size=16)
+    center=Alignment(horizontal='center',vertical='center',wrap_text=True)
+    left=Alignment(horizontal='left',vertical='center',wrap_text=True)
+
+    ws.merge_cells('B1:F1'); ws['B1']='Manaseer Natural Solutions MNS Factory'; ws['B1'].font=title; ws['B1'].alignment=center
+    ws['A3']='Production Report'; ws['A3'].font=Font(bold=True,size=14)
+    ws['A4']='Date: '+str(payload.get('date') or date.today().strftime('%d/%m/%Y'))
+    ws['B6']='Formula:-'; ws['C6']=payload.get('formula','')
+    ws['B9']='Kg / batch:-'; ws['C9']=float(payload.get('batch_kg') or 0)
+    ws['B10']='Order no.:-'; ws['C10']=payload.get('order_no','')
+    ws['B11']='Required quantity(ton)'; ws['C11']=float(payload.get('required_ton') or 0)
+    ws['B12']='No. of batches:-'; ws['C12']=float(payload.get('batches') or 1)
+    ws['B13']='Kg produced:-'; ws['C13']='=C9*C12'
+    for c in ['B6','B9','B10','B11','B12','B13']: ws[c].font=bold
+
+    ws['A16']='Silo no.'; ws['B16']='Raw material'; ws['C16']='Kg / ton'; ws['D16']='Kg / batch'; ws['E16']='Total theo.'; ws['F16']='Total actual'
+    ws['C17']='Basis 1000Kg'; ws['E17']='kg'; ws['F17']='kg'
+    for row in range(16,18):
+        for col in range(1,7): ws.cell(row,col).border=border; ws.cell(row,col).font=bold; ws.cell(row,col).alignment=center
+
+    materials=payload.get('materials') or {}
+    row=18
+    for name,kg in materials.items():
+        kg=float(kg or 0)
+        ws.cell(row,2,name); ws.cell(row,3,kg*1000/max(float(payload.get('batch_kg') or 1),1))
+        ws.cell(row,4,kg); ws.cell(row,5,f'=D{row}*$C$12'); ws.cell(row,6,f'=E{row}')
+        row+=1
+    while row<=23:
+        ws.cell(row,5,f'=D{row}*$C$12'); row+=1
+    ws['B24']='Sub total:-'; ws['C24']='=SUM(C18:C23)'; ws['D24']='=SUM(D18:D23)'; ws['E24']='=SUM(E18:E23)'; ws['F24']='=SUM(F18:F23)'
+
+    ws['B26']='Additives:-'; ws['B26'].font=bold
+    additives=[('Red Color',payload.get('color_qty',0)),('Foom Silica',payload.get('foom_silica',0)),('MgSO4 33%',0),('Aquamine',0),('Fe EDDHA 6%',0),('Disper Chlorophy',0),('TE- MIX EDTA',payload.get('te_mix_kg_per_ton',0))]
+    row=27
+    for name,kg_ton in additives:
+        ws.cell(row,2,name); ws.cell(row,3,float(kg_ton or 0)); ws.cell(row,4,f'=C{row}*$C$9/1000'); ws.cell(row,5,f'=D{row}*$C$12'); row+=1
+    while row<=38:
+        ws.cell(row,4,f'=C{row}*$C$9/1000'); ws.cell(row,5,f'=D{row}*$C$12'); row+=1
+    ws['B39']='Total'; ws['C39']='=SUM(C24:C38)'; ws['D39']='=SUM(D24:D38)'; ws['E39']='=SUM(E24:E38)'; ws['F39']='=SUM(F24:F38)'
+    for row in list(range(18,25))+list(range(27,40)):
+        for col in range(1,7): ws.cell(row,col).border=border; ws.cell(row,col).alignment=left
+    ws['A41']='Total No. of bags produced (20Kg)'; ws['E41']='Marks'
+    ws['A42']='type of bags'; ws['B42']=payload.get('bag_type','')
+    ws['A43']='No. of pallets Produced :-'; ws['B43']=''
+    ws['A44']='No. of bags per pallet:-'; ws['B44']=''
+    ws['A47']='Total production ='; ws['D47']='Kg'
+    ws['A48']='Reusable waste ='; ws['D48']='Kg'; ws['E48']='Invesible waste ='
+    ws['A49']='waste ='; ws['D49']='Kg'; ws['E49']='Defect (%) ='
+    ws['A50']='total working hours ='
+    ws['A52']='Brackdown details'; ws['A53']='No.'; ws['B53']='Description'; ws['F53']='Stopping Hours'
+    ws['A57']='Control room'; ws['F57']='Plant Manager'; ws['A58']='supervisor sign.'
+    for row in [41,42,43,44,47,48,49,50,52,53,57,58]:
+        for col in range(1,7): ws.cell(row,col).border=border; ws.cell(row,col).alignment=left
+    ws.print_area='A1:F58'; ws.page_setup.orientation='portrait'; ws.page_setup.fitToWidth=1; ws.page_setup.fitToHeight=1
+    ws.freeze_panes='A16'
+    out=BytesIO(); wb.save(out); return out.getvalue()
+
 class Handler(BaseHTTPRequestHandler):
     server_version='GHALI/0.4'
     def send_data(self,status,data,ctype='application/json; charset=utf-8'):
@@ -235,6 +307,21 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(quantities,dict): return self.send_data(400,jb({'error':'materials must be an object of material name -> kg'}))
                 r=analyze_blend_quantities(quantities)
                 return self.send_data(200,jb(r))
+            if path=='/api/production-order':
+                if not self.require('formulation'):return
+                try:
+                    payload=d if isinstance(d,dict) else {}
+                    body=build_production_order(payload)
+                    filename='Production_Order.xlsx'
+                    self.send_response(200)
+                    self.send_header('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                    self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
+                    self.send_header('Content-Length',str(len(body)))
+                    self.send_header('Cache-Control','no-store')
+                    self.end_headers(); self.wfile.write(body)
+                except Exception as exc:
+                    return self.send_data(500,jb({'error':'Could not create Production Order','detail':str(exc)[:300]}))
+                return
             if path=='/api/lab/run':
                 u=self.require('chat')
                 if not u:return
