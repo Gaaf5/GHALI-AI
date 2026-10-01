@@ -22,7 +22,7 @@ async function createProductionOrder(d){
     te_mix_kg_per_ton:(d.materials||{})['TE-MIX']?((d.materials||{})['TE-MIX']*1000/(d.batch_kg||+$('#batch').value||1)):0
   };
   const r=await fetch('/api/production-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  if(!r.ok){let e={};try{e=await r.json()}catch(_){ }throw Error(e.error||'Could not create Production Order');}
+  if(!r.ok){let e={};try{e=await r.json()}catch(_){ }throw Error([e.error,e.detail].filter(Boolean).join(': ')||('Could not create Production Order ('+r.status+')'));}
   const blob=await r.blob(), url=URL.createObjectURL(blob), a=document.createElement('a');
   a.href=url;a.download='Production_Order.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
