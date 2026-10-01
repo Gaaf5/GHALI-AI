@@ -14,6 +14,7 @@ from app.knowledge.store import KnowledgeStore
 from app.llm.factory import create_llm
 from app.memory import MemoryManager
 from app.tools.formulation import solve_named_formulation, analyze_blend_quantities
+from app.tools.coa import build_certificate_of_analysis
 from app.tools.lab import catalog as lab_catalog, simulate as lab_simulate
 from app.knowledge.evidence import registry as evidence_registry
 from app.tools.equilibrium_engine import engine_status
@@ -320,6 +321,20 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(quantities,dict): return self.send_data(400,jb({'error':'materials must be an object of material name -> kg'}))
                 r=analyze_blend_quantities(quantities)
                 return self.send_data(200,jb(r))
+            if path=='/api/reverse-coa':
+                if not self.require('formulation'):return
+                try:
+                    body=build_certificate_of_analysis(d if isinstance(d,dict) else {})
+                    filename='Certificate_of_Analysis.xlsx'
+                    self.send_response(200)
+                    self.send_header('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                    self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
+                    self.send_header('Content-Length',str(len(body)))
+                    self.send_header('Cache-Control','no-store')
+                    self.end_headers(); self.wfile.write(body)
+                except Exception as exc:
+                    return self.send_data(500,jb({'error':'Could not create Certificate of Analysis','detail':str(exc)[:300]}))
+                return
             if path=='/api/production-order':
                 if not self.require('formulation'):return
                 try:
