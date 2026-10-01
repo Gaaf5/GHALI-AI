@@ -124,6 +124,9 @@ def build_production_order(payload):
     ws.freeze_panes='A16'
     out=BytesIO(); wb.save(out); return out.getvalue()
 
+# Standard P.O. layout overrides the legacy builder above.
+from app.tools.production_order import build_production_order
+
 class Handler(BaseHTTPRequestHandler):
     server_version='GHALI/0.4'
     def send_data(self,status,data,ctype='application/json; charset=utf-8'):
