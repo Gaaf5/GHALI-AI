@@ -1,144 +1,159 @@
-import json
 from io import BytesIO
-from datetime import date
-from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from pathlib import Path
+from copy import copy
+from openpyxl import load_workbook
+
+TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "production_order_template.xlsx"
+
+def _num(v, default=0.0):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+def _norm(v):
+    return " ".join(str(v).strip().lower().split())
 
 def build_production_order(payload):
     payload = payload or {}
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Sheet1"
-    ws.sheet_view.showGridLines = False
-    white = PatternFill("solid", fgColor="FFFFFF")
-    thin = Side(style="thin", color="000000")
-    medium = Side(style="medium", color="000000")
-    dashed = Side(style="dashed", color="000000")
-    F = lambda bold=False, italic=False, size=10: Font(name="Times New Roman", size=size, bold=bold, italic=italic)
-    C = Alignment(horizontal="center", vertical="center")
-    L = Alignment(horizontal="left", vertical="center")
-    def put(a,v=None,b=False,al=None,bd=None,nf=None,fill=True,it=False,sz=10):
-        c=ws[a]; c.value=v; c.font=F(b,it,sz); c.alignment=al or L
-        if bd: c.border=bd
-        if nf: c.number_format=nf
-        if fill: c.fill=white
-        return c
-    def tb(top=medium,bottom=dashed):
-        return Border(left=medium,right=medium,top=top,bottom=bottom)
-    for col,w in {"A":8.27,"B":21.72,"C":36.20,"D":11.45,"E":13.45,"F":10.55}.items():
-        ws.column_dimensions[col].width=w
-    for r,h in {1:17.4,3:15.6,5:15.6,15:13.95,17:13.95,39:13.95}.items():
-        ws.row_dimensions[r].height=h
-    fmt1=r'#,##0.0_);[Red]\(#,##0.0\)'
-    fmt2='#,##0.00'
-    fmt0='#,##0'
+    if not TEMPLATE.is_file():
+        raise FileNotFoundError(f"Production order template not found: {TEMPLATE}")
 
-    put("B1","Manaseer Natural Solutions MNS Factory",True,L,None,None,True,False,14)
-    put("A3","Production Report",True,L,None,None,True,False,12)
-    put("A4","Date: "+str(payload.get("date") or date.today().strftime("%d/%m/%Y")),True)
-    put("B6","Formula:-",True,None,Border(left=thin,right=thin,top=thin,bottom=thin))
-    formula=payload.get("formula","")
-    if isinstance(formula,dict):
-        formula=f"{formula.get('N',0)}-{formula.get('P2O5',formula.get('P',0))}-{formula.get('K2O',formula.get('K',0))}"
-    put("C6",formula,True,C,Border(left=thin,right=thin,top=thin,bottom=thin))
-    put("D6",payload.get("color",""))
+    # Start from the supplied workbook itself. This preserves its exact
+    # dimensions, fonts, borders, number formats, print setup and layout.
+    wb = load_workbook(TEMPLATE)
+    ws = wb["Sheet1"]
 
-    batch=float(payload.get("batch_kg") or 0)
-    required=float(payload.get("required_ton") or 0)
-    batches=float(payload.get("batches") or ((required*1000/batch) if batch else 1))
-    put("B9","Kg / batch:-",True,None,Border(left=thin,right=thin,top=thin,bottom=thin))
-    put("C9",batch,False,C,Border(left=thin,right=thin,top=thin,bottom=thin),fmt0)
-    put("D9",payload.get("client",""))
-    put("B10","Order no.:-",True,None,Border(left=thin,right=thin,top=thin,bottom=thin))
-    put("C10",payload.get("order_no",""),False,C,Border(left=thin,right=thin,top=thin,bottom=thin))
-    put("D10",payload.get("brand") or payload.get("bag_type",""),True)
-    put("B11","Required quantity(ton)",True,None,Border(left=thin,right=thin,top=thin,bottom=thin))
-    put("C11",required,False,C,Border(left=thin,right=thin,top=thin,bottom=thin),fmt2)
-    put("B12","No. of batches:-",True,None,Border(left=thin,right=thin,top=thin,bottom=thin))
-    put("C12",batches,False,C,Border(left=thin,right=thin,top=thin,bottom=thin),fmt2)
-    put("B13","Kg produced:-",True,None,Border(left=thin,right=thin,top=thin,bottom=thin))
-    put("C13","=C9*C12",False,C,Border(left=thin,right=thin,top=thin,bottom=thin),fmt0)
+    formula = payload.get("formula", "")
+    if isinstance(formula, dict):
+        formula = f"{formula.get('N', 0)}-{formula.get('P2O5', formula.get('P', 0))}-{formula.get('K2O', formula.get('K', 0))}"
 
-    for i,h in enumerate(["Silo no.","Raw material","Kg / ton","Kg / batch","Total theo.","Total actual"],1):
-        put(f"{chr(64+i)}16",h,True,C,Border(left=medium,right=medium,top=medium,bottom=Side(style=None)))
-    for i,v in enumerate(["","Basis 1000Kg","","","kg","kg"],1):
-        put(f"{chr(64+i)}17",v,True,C,Border(left=medium,right=medium,top=Side(style=None),bottom=medium))
+    batch = _num(payload.get("batch_kg"))
+    required = _num(payload.get("required_ton"))
+    batches = _num(payload.get("batches"), 1.0) or 1.0
 
-    mats=payload.get("materials") or {}
-    if not isinstance(mats,dict): mats={}
-    def norm(x): return " ".join(str(x).strip().lower().split())
-    additive_names={"red color","foom silica","mgso4 33%","mgso4","aquamine","fe eddha 6%","disper chlorophy","te-mix","te- mix edta","te mix","te-mix edta"}
-    raw=[]; add={}
-    for name,kg in mats.items():
-        if norm(name) in additive_names: add[norm(name)]=float(kg or 0)
-        else: raw.append((str(name),float(kg or 0)))
-    n=max(6,len(raw)); extra=n-6
-    if extra: ws.insert_rows(24,extra)
-    rs,re=18,17+n; sub=re+1
-    for r in range(rs,re+1):
-        for c in range(1,7):
-            x=ws.cell(r,c); x.font=F(); x.border=tb(); x.alignment=C if c>=3 else L
-    for r,(name,kg) in enumerate(raw,rs):
-        put(f"B{r}",name,False,L,tb(),None,False)
-        put(f"C{r}",kg*1000/batch if batch else 0,False,C,tb(),fmt1,False)
-        put(f"D{r}",f"=C{r}*$C$9/1000",False,C,tb(),fmt2,False)
-        put(f"E{r}",f"=D{r}*$C$12",False,C,tb(),fmt2,False)
-        put(f"F{r}","",False,C,tb(),fmt2,False)
-    put(f"B{sub}","Sub total:-",True,L,tb(dashed,medium))
-    put(f"C{sub}",f"=SUM(C{rs}:C{re})",False,C,tb(dashed,medium),fmt1)
-    put(f"D{sub}",f"=C{sub}*$C$9/1000",False,C,tb(dashed,medium),fmt2)
-    put(f"E{sub}",f"=SUM(E{rs}:E{re})",False,C,tb(dashed,medium),fmt2)
-    put(f"F{sub}","",False,C,tb(dashed,medium),fmt2)
+    # Header fields. The cells containing explanatory notes in the original
+    # template are deliberately overwritten/cleared in the final document.
+    ws["A4"] = f"Date: {payload.get('date') or __import__('datetime').date.today().strftime('%d/%m/%Y')}"
+    ws["C6"] = formula
+    ws["D6"] = payload.get("color", "")
+    ws["C9"] = batch
+    ws["D9"] = payload.get("client", "")
+    ws["C10"] = payload.get("order_no", "")
+    ws["D10"] = payload.get("brand") or payload.get("bag_type", "")
+    ws["C11"] = required
+    ws["C12"] = batches
+    ws["C13"] = "=C9*C12"
 
-    add_title=sub+2; add_start=add_title+1
-    add_rows=[
-        ("Red Color",float(payload.get("color_qty") or add.get("red color",0))),
-        ("Foom Silica",float(payload.get("foom_silica") or add.get("foom silica",0))),
-        ("MgSO4 33%",add.get("mgso4 33%",add.get("mgso4",0))),
-        ("Aquamine",add.get("aquamine",0)),
-        ("Fe EDDHA 6%",add.get("fe eddha 6%",0)),
-        ("Disper Chlorophy",add.get("disper chlorophy",0)),
-        ("TE- MIX EDTA",float(payload.get("te_mix_kg_per_ton") or 0)),
-    ]
-    add_end=add_start+len(add_rows)-1; total=add_end+1
-    put(f"B{add_title}","Additives:-",True,L,tb(medium,dashed))
-    for r,(name,val) in enumerate(add_rows,add_start):
-        put(f"A{r}","",False,L,tb(),None,True)
-        put(f"B{r}",name,name in {"Foom Silica","MgSO4 33%","TE- MIX EDTA"},L,tb())
-        put(f"C{r}",val,True,C,tb(),fmt2)
-        put(f"D{r}",f"=C{r}*$C$9/1000",False,C,tb(),fmt2)
-        put(f"E{r}",f"=D{r}*$C$12",False,C,tb(),fmt2)
-        put(f"F{r}","",False,C,tb(),fmt2)
-    put(f"B{total}","Total",True,L,Border(left=medium,right=medium,top=medium,bottom=medium))
-    put(f"C{total}",f"=SUM(C{sub}:C{add_end})",False,C,Border(left=medium,right=medium,top=medium,bottom=medium),fmt2)
-    put(f"D{total}",f"=C{total}*$C$9/1000",False,C,Border(left=medium,right=medium,top=medium,bottom=medium),fmt2)
-    put(f"E{total}",f"=SUM(E{sub}:E{add_end})",False,C,Border(left=medium,right=medium,top=medium,bottom=medium),fmt2)
-    put(f"F{total}","",False,C,Border(left=medium,right=medium,top=medium,bottom=medium),fmt2)
+    # Raw-material table in the original template has six rows (18:23).
+    mats = payload.get("materials") or {}
+    raw = [(str(name), _num(kg)) for name, kg in mats.items()
+           if _norm(name) not in {
+               "red color", "foom silica", "mgso4 33%", "mgso4",
+               "aquamine", "fe eddha 6%", "disper chlorophy",
+               "te-mix", "te- mix edta", "te mix", "te-mix edta"
+           } and _num(kg) > 0]
 
-    r41=total+2
-    for rr,label in [(r41,"Total No. of bags produced (20Kg)"),(r41+1,"type of bags"),(r41+2,"No. of pallets Produced :-"),(r41+3,"No. of bags per pallet:-")]:
-        for c in range(1,4):
-            put(f"{chr(64+c)}{rr}","",False,L,Border(left=dashed,right=dashed,top=dashed,bottom=dashed))
-        put(f"A{rr}",label)
-    put(f"E{r41}","Marks")
-    put(f"B{r41+1}",payload.get("bag_type",""))
-    r47=r41+6
-    for rr,label in [(r47,"Total production ="),(r47+1,"Reusable waste ="),(r47+2,"waste ="),(r47+3,"total working hours =")]:
-        put(f"A{rr}",label,False,L,Border(left=dashed,right=dashed,top=dashed,bottom=dashed))
-    put(f"D{r47}","Kg"); put(f"D{r47+1}","Kg"); put(f"D{r47+2}","Kg")
-    put(f"E{r47+1}","Invesible waste ="); put(f"E{r47+2}","Defect (%) =")
+    if len(raw) > 6:
+        extra = len(raw) - 6
+        ws.insert_rows(24, extra)
+        # Copy the template row 23 formatting/formulas into the inserted rows.
+        for r in range(24, 24 + extra):
+            for c in range(1, 8):
+                src = ws.cell(23, c)
+                dst = ws.cell(r, c)
+                if src.has_style:
+                    dst._style = copy(src._style)
+                if src.number_format:
+                    dst.number_format = src.number_format
+                dst.font = copy(src.font)
+                dst.fill = copy(src.fill)
+                dst.border = copy(src.border)
+                dst.alignment = copy(src.alignment)
+                dst.protection = copy(src.protection)
+            ws.row_dimensions[r].height = ws.row_dimensions[23].height
 
-    r52=r41+11
-    put(f"A{r52}","Brackdown details",True)
-    for c,v in enumerate(["No.","Description","","","","Stopping Hours"],1):
-        put(f"{chr(64+c)}{r52+1}",v,False,L,Border(left=thin,right=dashed,top=thin,bottom=dashed))
-    put(f"A{r52+5}","Control room",True,L,None,None,False,True)
-    put(f"F{r52+5}","Plant Manager",True,L,None,None,False,True)
-    put(f"A{r52+6}","supervisor sign.",True,L,None,None,False,True)
+    raw_end = 17 + max(6, len(raw))
+    subtotal = raw_end + 1
 
-    ws.print_area=f"A1:H{r52+6}"
-    ws.page_setup.orientation="portrait"; ws.page_setup.paperSize=1
-    ws.page_setup.fitToWidth=1; ws.page_setup.fitToHeight=None
-    ws.page_margins.left=.75; ws.page_margins.right=.75; ws.page_margins.top=.5; ws.page_margins.bottom=.5
-    ws.freeze_panes="A16"
-    out=BytesIO(); wb.save(out); return out.getvalue()
+    # Clear the raw-material slots first, then populate them.
+    for r in range(18, raw_end + 1):
+        for c in range(1, 7):
+            ws.cell(r, c).value = None
+    for idx, (name, kg_batch) in enumerate(raw, start=18):
+        ws.cell(idx, 2).value = name
+        ws.cell(idx, 3).value = kg_batch * 1000.0 / batch if batch else 0
+        ws.cell(idx, 4).value = f"=C{idx}*$C$9/1000"
+        ws.cell(idx, 5).value = f"=D{idx}*$C$12"
+        ws.cell(idx, 6).value = None
+
+    ws.cell(subtotal, 2).value = "Sub total:-"
+    ws.cell(subtotal, 3).value = f"=SUM(C18:C{raw_end})"
+    ws.cell(subtotal, 4).value = f"=C{subtotal}*$C$9/1000"
+    ws.cell(subtotal, 5).value = f"=SUM(E18:E{raw_end})"
+    ws.cell(subtotal, 6).value = None
+
+    # With the normal six-material case, the additive rows stay exactly at
+    # the template's original rows 27:38. If extra raw rows were inserted,
+    # all these coordinates shift by the same amount.
+    shift = max(0, len(raw) - 6)
+    def rr(original_row):
+        return original_row + shift
+
+    additive_values = {
+        27: _num(payload.get("color_qty")),
+        28: 0,
+        29: 0,
+        30: _num(payload.get("foom_silica")),
+        31: 0,
+        32: 0,
+        33: 0,
+        34: 0,
+        35: _num(payload.get("te_mix_kg_per_ton")),
+        36: 0,
+        37: 0,
+        38: 0,
+    }
+    aliases = {}
+    for name, kg in mats.items():
+        aliases[_norm(name)] = _num(kg)
+
+    additive_values[27] = _num(payload.get("color_qty"), aliases.get("red color", 0))
+    additive_values[30] = _num(payload.get("foom_silica"), aliases.get("foom silica", 0))
+    additive_values[31] = aliases.get("mgso4 33%", aliases.get("mgso4", 0))
+    additive_values[32] = aliases.get("aquamine", 0)
+    additive_values[33] = aliases.get("fe eddha 6%", 0)
+    additive_values[34] = aliases.get("disper chlorophy", 0)
+    additive_values[35] = _num(payload.get("te_mix_kg_per_ton"), aliases.get("te-mix", 0) * 1000.0 / batch if batch else 0)
+
+    for original_row, value in additive_values.items():
+        r = rr(original_row)
+        ws.cell(r, 3).value = value
+        ws.cell(r, 4).value = f"=C{r}*$C$9/1000"
+        ws.cell(r, 5).value = f"=D{r}*$C$12"
+        ws.cell(r, 6).value = None
+
+    total = rr(39)
+    ws.cell(total, 2).value = "Total"
+    ws.cell(total, 3).value = f"=SUM(C{subtotal}:C{rr(38)})"
+    ws.cell(total, 4).value = f"=C{total}*$C$9/1000"
+    ws.cell(total, 5).value = f"=SUM(E{subtotal}:E{rr(38)})"
+    ws.cell(total, 6).value = None
+
+    # Remove every instructional annotation from the supplied template.
+    for cell in ("C6", "D6", "C9", "D9", "C10", "D10", "C11", "C12",
+                 "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34",
+                 "C35", "C36", "C37", "C38"):
+        # These are data cells, not the labels. They are already populated
+        # above where applicable; this list documents the annotation cells
+        # that must never survive in the output.
+        pass
+
+    # The original explanatory notes live in C6, D6, C9, D9, D10, C11, C12,
+    # C27, C30, C32 and C34. Data was already written to all relevant cells.
+    # No annotation text remains because those cells have been overwritten
+    # with production values or blank values.
+
+    out = BytesIO()
+    wb.save(out)
+    return out.getvalue()
