@@ -426,6 +426,24 @@ class Handler(BaseHTTPRequestHandler):
                 qid=STATE.db.save_qc_result(u['id'],bid,str(d.get('sample_id','')),results,audit['status'],str(d.get('notes','')))
                 release=batch_release_state(batch,formulation,STATE.db.list_qc_results(u['id'],bid))
                 return self.send_data(200,jb({'qc_id':qid,'limits':limits,**audit,'release':release}))
+            if path=='/api/production-batch-release':
+                u=self.require('formulation')
+                if not u:return
+                bid=int(d.get('batch_id'))
+                batch=STATE.db.get_production_batch(u['id'],bid)
+                if not batch:return self.send_data(404,jb({'error':'Production batch not found'}))
+                formulation=STATE.db.get_formulation(u['id'],batch.get('formulation_id')) if batch.get('formulation_id') else None
+                qcs=STATE.db.list_qc_results(u['id'],bid)
+                release=batch_release_state(batch,formulation,qcs)
+                if not release.get('releasable'):
+                    return self.send_data(409,jb({'error':'Batch is not releasable','release':release}))
+                STATE.db.release_production_batch(u['id'],bid)
+                batch=STATE.db.get_production_batch(u['id'],bid)
+                batch['qc_results']=qcs
+                batch['qc_limits']=qc_limits_from_formulation(formulation or {})
+                batch['release']=batch_release_state(batch,formulation,qcs)
+                return self.send_data(200,jb(batch))
+
             if path=='/api/production-batch-po':
                 u=self.require('formulation')
                 if not u:return

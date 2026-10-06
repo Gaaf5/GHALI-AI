@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import json
 from pathlib import Path
 
@@ -320,6 +320,13 @@ class Database:
                             (user_id,int(batch_id),sample_id,json.dumps(results,ensure_ascii=False),status,notes))
         self.connection.commit()
         return self.cursor.lastrowid
+
+    def release_production_batch(self, user_id, batch_id):
+        row=self.cursor.execute("SELECT id,status FROM production_batches WHERE id=? AND user_id=?",(int(batch_id),user_id)).fetchone()
+        if not row: raise ValueError("Production batch not found")
+        self.cursor.execute("UPDATE production_batches SET status='released' WHERE id=? AND user_id=?",(int(batch_id),user_id))
+        self.connection.commit()
+        return True
 
     def manufacturing_overview(self, user_id):
         import json
