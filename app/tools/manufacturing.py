@@ -131,6 +131,17 @@ def batch_release_state(batch, formulation=None, qc_results=None):
     reasons=[]; planned=_f(batch.get("planned_kg")); actual=_f(batch.get("actual_kg")); status=str(batch.get("status") or "planned").lower()
     if planned<=0: reasons.append("Planned production quantity is missing.")
     if actual<=0 or status not in {"completed","released"}: reasons.append("Production actuals are not completed.")
+    theoretical=batch.get("theoretical") or {}
+    actuals=batch.get("actual") or {}
+    if theoretical and actual>0:
+        missing=[str(k) for k in theoretical if _f(actuals.get(k))<=0]
+        if missing: reasons.append("Missing actual quantities: " + ", ".join(missing[:8]))
+        variance=batch.get("variance") or {}
+        outliers=[]
+        for name,v in variance.items():
+            pct=v.get("delta_pct") if isinstance(v,dict) else None
+            if pct is not None and abs(_f(pct))>5: outliers.append(str(name))
+        if outliers: reasons.append("Material variance exceeds +/-5%: " + ", ".join(outliers[:8]))
     qc=list(qc_results or []); latest=qc[0] if qc else None
     if not latest: reasons.append("No QC result has been recorded.")
     elif str(latest.get("status","" )).upper()!="PASS": reasons.append("Latest QC result did not pass.")
