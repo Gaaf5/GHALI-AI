@@ -416,6 +416,37 @@ class Handler(BaseHTTPRequestHandler):
                 audit=qc_status(results,d.get('limits') or {})
                 qid=STATE.db.save_qc_result(u['id'],int(d['batch_id']),str(d.get('sample_id','')),results,audit['status'],str(d.get('notes','')))
                 return self.send_data(200,jb({'qc_id':qid,**audit}))
+            if path=='/api/production-batch-po':
+                u=self.require('formulation')
+                if not u:return
+                try:
+                    bid=int(d.get('batch_id'))
+                    batch=STATE.db.get_production_batch(u['id'],bid)
+                    if not batch:return self.send_data(404,jb({'error':'Production batch not found'}))
+                    payload={
+                        'order_no':batch.get('production_order_no') or batch.get('batch_no'),
+                        'batch_kg':batch.get('planned_kg') or 0,
+                        'base_kg':batch.get('planned_kg') or 0,
+                        'materials':batch.get('theoretical') or {},
+                    }
+                    if batch.get('formulation_id'):
+                        formulation=STATE.db.get_formulation(u['id'],batch['formulation_id'])
+                        if formulation:
+                            result=formulation.get('result') or {}
+                            payload.update({
+                                'formula':result.get('target') or formulation.get('target'),
+                                'base_kg':formulation.get('batch_kg') or batch.get('planned_kg') or 0,
+                                'materials':result.get('materials') or batch.get('theoretical') or {},
+                                'te_mix_kg_per_ton':((result.get('materials') or {}).get('TE-MIX',0)*1000/(formulation.get('batch_kg') or 1)),
+                            })
+                    body=build_production_order(payload)
+                    self.send_response(200)
+                    self.send_header('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                    self.send_header('Content-Disposition',f'attachment; filename="Production_Order_{batch.get("batch_no")}.xlsx"')
+                    self.send_header('Content-Length',str(len(body))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(body)
+                except Exception as exc:
+                    return self.send_data(500,jb({'error':'Could not create Production Order','detail':str(exc)[:300]}))
+                return
             if path=='/api/production-batch-coa':
                 u=self.require('formulation')
                 if not u:return
