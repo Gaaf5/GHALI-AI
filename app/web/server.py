@@ -426,6 +426,8 @@ class Handler(BaseHTTPRequestHandler):
                 results=d.get('results') or {}
                 limits=qc_limits_from_formulation(formulation or {})
                 if d.get('limits'): limits=d.get('limits')
+                if not limits:
+                    return self.send_data(409,jb({'error':'QC limits cannot be determined because this batch has no linked formulation.'}))
                 audit=qc_status(results,limits)
                 qid=STATE.db.save_qc_result(u['id'],bid,str(d.get('sample_id','')),results,audit['status'],str(d.get('notes','')))
                 release=batch_release_state(batch,formulation,STATE.db.list_qc_results(u['id'],bid))
