@@ -333,8 +333,14 @@ class Database:
         f=self.cursor.execute("SELECT COUNT(*) n FROM formulations WHERE user_id=?",(user_id,)).fetchone()["n"]
         b=self.cursor.execute("SELECT COUNT(*) n FROM production_batches WHERE user_id=?",(user_id,)).fetchone()["n"]
         q=self.cursor.execute("SELECT COUNT(*) n FROM qc_results WHERE user_id=?",(user_id,)).fetchone()["n"]
-        recent=self.cursor.execute("SELECT id,batch_no,production_order_no,planned_kg,actual_kg,status,variance_json FROM production_batches WHERE user_id=? ORDER BY id DESC LIMIT 10",(user_id,)).fetchall()
-        return {"formulations":f,"batches":b,"qc_results":q,"recent_batches":[dict(x) for x in recent]}
+        recent=self.cursor.execute("SELECT id,batch_no,production_order_no,planned_kg,actual_kg,status,variance_json,formulation_id FROM production_batches WHERE user_id=? ORDER BY id DESC LIMIT 10",(user_id,)).fetchall()
+        out=[]
+        for x in recent:
+            d=dict(x)
+            d["variance"]=json.loads(d.pop("variance_json") or "{}")
+            d["release_status"]="RELEASED" if str(d.get("status","")).lower()=="released" else "HOLD"
+            out.append(d)
+        return {"formulations":f,"batches":b,"qc_results":q,"recent_batches":out}
 
     def close(self):
         self.connection.close()
