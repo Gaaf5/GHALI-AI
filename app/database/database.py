@@ -72,6 +72,46 @@ class Database:
             FOREIGN KEY(user_id) REFERENCES auth_users(id)
         );
         CREATE INDEX IF NOT EXISTS idx_lab_experiments_user ON lab_experiments(user_id, created_at DESC);
+        CREATE TABLE IF NOT EXISTS formulations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            formulation_no TEXT NOT NULL UNIQUE,
+            target_json TEXT NOT NULL,
+            batch_kg REAL NOT NULL,
+            materials_json TEXT NOT NULL,
+            result_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'draft',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES auth_users(id)
+        );
+        CREATE TABLE IF NOT EXISTS production_batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            batch_no TEXT NOT NULL UNIQUE,
+            formulation_id INTEGER,
+            production_order_no TEXT,
+            planned_kg REAL NOT NULL DEFAULT 0,
+            actual_kg REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'planned',
+            theoretical_json TEXT NOT NULL DEFAULT '{}',
+            actual_json TEXT NOT NULL DEFAULT '{}',
+            variance_json TEXT NOT NULL DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES auth_users(id),
+            FOREIGN KEY(formulation_id) REFERENCES formulations(id)
+        );
+        CREATE TABLE IF NOT EXISTS qc_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            batch_id INTEGER NOT NULL,
+            sample_id TEXT NOT NULL DEFAULT '',
+            results_json TEXT NOT NULL DEFAULT '{}',
+            status TEXT NOT NULL DEFAULT 'pending',
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES auth_users(id),
+            FOREIGN KEY(batch_id) REFERENCES production_batches(id) ON DELETE CASCADE
+        );
         CREATE TABLE IF NOT EXISTS raw_material_aliases (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             raw_material_id INTEGER NOT NULL,
@@ -201,6 +241,51 @@ class Database:
             d['result']=json.loads(d.pop('result_json'))
             out.append(d)
         return out
+
+    def save_formulation(self, user_id, target, batch_kg, materials, result, status='draft'):
+        import uuid
+        no='FORM-'+uuid.uuid4().hex[:8].upper()
+        self.cursor.execute(
+            "INSERT INTO formulations(user_id,formulation_no,target_json,batch_kg,materials_json,result_json,status) VALUES(?,?,?,?,?,?,?)",
+            (user_id,no,json.dumps(target,ensure_ascii=False),float(batch_kg),json.dumps(materials,ensure_ascii=False),
+             json.dumps(result,ensure_ascii=False),status))
+        self.connection.commit()
+        return self.cursor.lastrowid, no
+
+    def save_production_batch(self, user_id, batch_no, formulation_id, order_no, planned_kg, theoretical):
+        self.cursor.execute(
+            "INSERT INTO production_batches(user_id,batch_no,formulation_id,production_order_no,planned_kg,theoretical_json) VALUES(?,?,?,?,?,?)",
+            (user_id,batch_no,formulation_id,order_no,float(planned_kg),json.dumps(theoretical,ensure_ascii=False)))
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def update_production_actuals(self, user_id, batch_id, actuals, actual_total=None, status='completed'):
+        row=self.cursor.execute("SELECT * FROM production_batches WHERE id=? AND user_id=?",(int(batch_id),user_id)).fetchone()
+        if not row: raise ValueError("Production batch not found")
+        theoretical=json.loads(row["theoretical_json"] or '{}')
+        actual_total=float(actual_total if actual_total is not None else sum(float(v) for v in actuals.values()))
+        variance={}
+        for name in set(theoretical)|set(actuals):
+            t=float(theoretical.get(name,0)); a=float(actuals.get(name,0))
+            variance[name]={"theoretical_kg":t,"actual_kg":a,"delta_kg":a-t,"delta_pct":(a-t)*100/t if t else None}
+        self.cursor.execute("UPDATE production_batches SET actual_kg=?,actual_json=?,variance_json=?,status=? WHERE id=? AND user_id=?",
+                            (actual_total,json.dumps(actuals,ensure_ascii=False),json.dumps(variance,ensure_ascii=False),status,int(batch_id),user_id))
+        self.connection.commit()
+        return variance
+
+    def save_qc_result(self, user_id, batch_id, sample_id, results, status='approved', notes=''):
+        self.cursor.execute("INSERT INTO qc_results(user_id,batch_id,sample_id,results_json,status,notes) VALUES(?,?,?,?,?,?)",
+                            (user_id,int(batch_id),sample_id,json.dumps(results,ensure_ascii=False),status,notes))
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def manufacturing_overview(self, user_id):
+        import json
+        f=self.cursor.execute("SELECT COUNT(*) n FROM formulations WHERE user_id=?",(user_id,)).fetchone()["n"]
+        b=self.cursor.execute("SELECT COUNT(*) n FROM production_batches WHERE user_id=?",(user_id,)).fetchone()["n"]
+        q=self.cursor.execute("SELECT COUNT(*) n FROM qc_results WHERE user_id=?",(user_id,)).fetchone()["n"]
+        recent=self.cursor.execute("SELECT batch_no,production_order_no,planned_kg,actual_kg,status,variance_json FROM production_batches WHERE user_id=? ORDER BY id DESC LIMIT 10",(user_id,)).fetchall()
+        return {"formulations":f,"batches":b,"qc_results":q,"recent_batches":[dict(x) for x in recent]}
 
     def close(self):
         self.connection.close()

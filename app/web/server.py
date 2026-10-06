@@ -23,6 +23,7 @@ from app.knowledge.thermo_db import build_seed_tdb
 from app.tools.phreeqc_generator import build_input as build_phreeqc_input
 from app.tools.phreeqc_adapter import discover_phreeqc, run_phreeqc
 from app.tools.model_selector import select_activity_model, water_analysis_to_molal
+from app.tools.manufacturing import production_readiness, build_theoretical_batch, material_variance, batch_kpis, qc_status, workflow_state
 from app.web.auth import AuthManager
 
 ROOT=Path(__file__).resolve().parent; STATIC=ROOT/'static'; STATE=None
@@ -313,8 +314,14 @@ class Handler(BaseHTTPRequestHandler):
                 STATE.db.add_message(cid,u['id'],'assistant',reply)
                 return self.send_data(200,jb({'reply':reply,'conversation_id':cid}))
             if path=='/api/formulate':
-                if not self.require('formulation'):return
-                r=solve_named_formulation(str(d['target']),float(d['batch_kg']),list(d['materials']),float(d.get('tolerance_pct',.2)),d.get('limits') or {},d.get('objective'),d.get('fixed_kg') or {}); return self.send_data(200,jb(r))
+                u=self.require('formulation')
+                if not u:return
+                r=solve_named_formulation(str(d['target']),float(d['batch_kg']),list(d['materials']),float(d.get('tolerance_pct',.2)),d.get('limits') or {},d.get('objective'),d.get('fixed_kg') or {})
+                rows=STATE.db.list_raw_materials()
+                r['readiness']=production_readiness(r,rows)
+                fid,fno=STATE.db.save_formulation(u['id'],d.get('target'),float(d['batch_kg']),r.get('materials') or {},r,r.get('status','draft'))
+                r['formulation_id']=fid; r['formulation_no']=fno
+                return self.send_data(200,jb(r))
             if path=='/api/analyze-blend':
                 if not self.require('formulation'):return
                 quantities=d.get('materials') or {}
@@ -350,6 +357,54 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as exc:
                     return self.send_data(500,jb({'error':'Could not create Production Order','detail':str(exc)[:300]}))
                 return
+            if path=='/api/manufacturing/overview':
+                u=self.require('chat')
+                if not u:return
+                return self.send_data(200,jb(STATE.db.manufacturing_overview(u['id'])))
+            if path=='/api/manufacturing/readiness':
+                if not self.require('formulation'):return
+                result=d.get('result') or {}
+                return self.send_data(200,jb(production_readiness(result,STATE.db.list_raw_materials())))
+            if path=='/api/production-batch':
+                u=self.require('formulation')
+                if not u:return
+                theoretical=build_theoretical_batch(d.get('formulation') or d)
+                import uuid
+                batch_no=str(d.get('batch_no') or ('BATCH-'+uuid.uuid4().hex[:8].upper()))
+                bid=STATE.db.save_production_batch(u['id'],batch_no,d.get('formulation_id'),d.get('order_no',''),float(d.get('planned_kg') or 0),theoretical)
+                return self.send_data(200,jb({'batch_id':bid,'batch_no':batch_no,'theoretical':theoretical}))
+            if path=='/api/production-batch/actuals':
+                u=self.require('formulation')
+                if not u:return
+                actuals=d.get('actuals') or {}
+                variance=STATE.db.update_production_actuals(u['id'],int(d['batch_id']),actuals,d.get('actual_total'),str(d.get('status','completed')))
+                row=STATE.db.cursor.execute("SELECT planned_kg,actual_kg FROM production_batches WHERE id=? AND user_id=?",(int(d['batch_id']),u['id'])).fetchone()
+                return self.send_data(200,jb({'variance':variance,'kpis':batch_kpis(row['planned_kg'],row['actual_kg'],variance)}))
+            if path=='/api/qc-result':
+                u=self.require('formulation')
+                if not u:return
+                results=d.get('results') or {}
+                audit=qc_status(results,d.get('limits') or {})
+                qid=STATE.db.save_qc_result(u['id'],int(d['batch_id']),str(d.get('sample_id','')),results,audit['status'],str(d.get('notes','')))
+                return self.send_data(200,jb({'qc_id':qid,**audit}))
+            if path=='/api/qc-coa':
+                if not self.require('formulation'):return
+                try:
+                    body=build_certificate_of_analysis(d if isinstance(d,dict) else {})
+                    filename='Certificate_of_Analysis.xlsx'
+                    self.send_response(200)
+                    self.send_header('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                    self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
+                    self.send_header('Content-Length',str(len(body)))
+                    self.send_header('Cache-Control','no-store')
+                    self.end_headers(); self.wfile.write(body)
+                except Exception as exc:
+                    return self.send_data(500,jb({'error':'Could not create Certificate of Analysis','detail':str(exc)[:300]}))
+                return
+            if path=='/api/workflow-state':
+                u=self.require('chat')
+                if not u:return
+                return self.send_data(200,jb(workflow_state(d.get('formulation'),d.get('production'),d.get('qc'))))
             if path=='/api/lab/run':
                 u=self.require('chat')
                 if not u:return
