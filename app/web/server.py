@@ -399,6 +399,10 @@ class Handler(BaseHTTPRequestHandler):
                     if not saved:return self.send_data(404,jb({'error':'Formulation not found'}))
                     formulation=saved.get('result') or saved
                 theoretical=build_theoretical_batch(formulation or d)
+                if formulation:
+                    readiness=production_readiness(formulation,STATE.db.list_raw_materials())
+                    if not readiness.get('valid'):
+                        return self.send_data(409,jb({'error':'Formulation is not production-ready','readiness':readiness}))
                 import uuid
                 batch_no=str(d.get('batch_no') or ('BATCH-'+uuid.uuid4().hex[:8].upper()))
                 planned=float(d.get('planned_kg') or (formulation or {}).get('batch_kg') or 0)
