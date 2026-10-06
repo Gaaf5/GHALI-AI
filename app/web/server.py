@@ -16,6 +16,7 @@ from app.memory import MemoryManager
 from app.tools.formulation import solve_named_formulation, analyze_blend_quantities
 from app.tools.coa import build_certificate_of_analysis
 from app.tools.lab import catalog as lab_catalog, simulate as lab_simulate
+from app.tools.liquid_formulation import assess_liquid_formulation
 from app.knowledge.evidence import registry as evidence_registry
 from app.tools.equilibrium_engine import engine_status
 from app.knowledge.chemical_mapping import get_mapping, mapped_materials
@@ -521,6 +522,14 @@ class Handler(BaseHTTPRequestHandler):
                 u=self.require('chat')
                 if not u:return
                 return self.send_data(200,jb(workflow_state(d.get('formulation'),d.get('production'),d.get('qc'))))
+            if path=='/api/lab/liquid-assess':
+                u=self.require('chat')
+                if not u:return
+                try:
+                    result=assess_liquid_formulation(d,STATE.db.list_raw_materials())
+                    return self.send_data(200,jb(result))
+                except (ValueError,TypeError) as exc:
+                    return self.send_data(400,jb({'error':str(exc)}))
             if path=='/api/lab/run':
                 u=self.require('chat')
                 if not u:return

@@ -327,3 +327,51 @@ $('#labReset').onclick=resetSimulator;
 $('#labRun').onclick=runLab;
 $('#labAIReview').onclick=runLabAIReview;
 (async()=>{await initLab()})();
+
+
+let liquidCatalog=[];
+function lfEsc(v){return esc(v)}
+async function lfLoadCatalog(){
+  if(liquidCatalog.length)return;
+  try{const d=await api('/api/lab/materials');liquidCatalog=Array.isArray(d)?d:[]}catch(e){liquidCatalog=[]}
+}
+function lfOptions(selected=''){
+  return '<option value="">Select material…</option>'+liquidCatalog.map(m=>'<option value="'+lfEsc(m.id)+'"'+(m.id===selected?' selected':'')+'>'+lfEsc(m.name)+'</option>').join('');
+}
+function lfAddRow(material='',kg=''){
+  const box=$('#lfRows'),row=document.createElement('div');row.className='lab-add-row lf-row';
+  row.innerHTML='<span class="lab-order">1</span><select class="lf-material">'+lfOptions(material)+'</select><input class="lf-kg" type="number" min="0.001" step="0.001" value="'+kg+'" placeholder="kg"><span class="muted">W/W + W/V after assessment</span><span></span><button class="small lf-remove" type="button">Remove</button>';
+  box.appendChild(row);row.querySelector('.lf-remove').onclick=()=>{row.remove();lfRenumber()};lfRenumber();
+}
+function lfRenumber(){const rows=[...document.querySelectorAll('.lf-row')];rows.forEach((r,i)=>r.querySelector('.lab-order').textContent=i+1);$('#lfCount').textContent=rows.length+' material'+(rows.length===1?'':'s')}
+function lfPayload(){
+  const density=Number($('#lfDensity').value);
+  if(!Number.isFinite(density)||density<=0)throw Error('Final density is required.');
+  const materials=[...document.querySelectorAll('.lf-row')].map(r=>({material:r.querySelector('.lf-material').value,kg:Number(r.querySelector('.lf-kg').value)}));
+  if(!materials.length)throw Error('Add at least one raw material.');
+  return {product_name:$('#lfProduct').value,batch_kg:Number($('#lfBatch').value),density_g_ml:density,target_ph:$('#lfPH').value===''?null:Number($('#lfPH').value),temperature_c:Number($('#lfTemp').value),materials};
+}
+function lfRender(d){
+  $('#lfReadiness').textContent=d.readiness||'REVIEW';
+  const fw=d.formula_ww||{},fv=d.formula_wv||{},sec=d.secondary||{},nf=d.nitrogen_forms_pct||{},ct=d.ct||{};
+  const mats=(d.materials||[]).map(x=>'<div class="resrow"><span>'+lfEsc(x.material)+'</span><b>'+Number(x.kg).toFixed(3)+' kg · W/W '+Number(x.ww_pct).toFixed(3)+'% · W/V '+Number(x.wv_pct).toFixed(3)+'%</b></div>').join('');
+  const warns=(d.warnings||[]).map(x=>'<div class="lab-warning">⚠ '+lfEsc(x)+'</div>').join('');
+  const comp=(d.compatibility_warnings||[]).map(x=>'<div class="lab-warning">⚗ '+lfEsc(x)+'</div>').join('');
+  const seq=(d.addition_sequence||[]).map((x,i)=>'<div class="resrow"><span>'+(i+1)+'. '+lfEsc(x)+'</span><b>ADD</b></div>').join('');
+  const stability=(d.stability_plan||[]).map(x=>'<div class="resrow"><span>'+lfEsc(x.time)+'</span><b>'+lfEsc((x.tests||[]).join(' · '))+'</b></div>').join('');
+  $('#lfResult').innerHTML='<div class="lab-kpis"><div><span>Readiness</span><b>'+lfEsc(d.readiness)+'</b></div><div><span>Estimated volume</span><b>'+Number(d.estimated_volume_l||0).toFixed(2)+' L</b></div><div><span>N-P-K W/W</span><b>'+Number(fw.N||0).toFixed(2)+'-'+Number(fw.P2O5||0).toFixed(2)+'-'+Number(fw.K2O||0).toFixed(2)+'</b></div><div><span>N-P-K W/V</span><b>'+Number(fv.N||0).toFixed(2)+'-'+Number(fv.P2O5||0).toFixed(2)+'-'+Number(fv.K2O||0).toFixed(2)+'</b></div></div>'+
+  '<h4>Material sheet</h4>'+mats+
+  '<h4>Nutrient analysis</h4>'+['N','P2O5','K2O'].map(k=>'<div class="resrow"><span>'+k+' W/W</span><b>'+Number(fw[k]||0).toFixed(3)+'% · W/V '+Number(fv[k]||0).toFixed(3)+'%</b></div>').join('')+
+  '<div class="resrow"><span>Nitrate / Ammoniacal / Urea N</span><b>'+Number(nf.nitrate_N||0).toFixed(3)+' / '+Number(nf.ammoniacal_N||0).toFixed(3)+' / '+Number(nf.urea_N||0).toFixed(3)+'%</b></div>'+
+  '<div class="resrow"><span>S / Mg / Cl</span><b>'+Number(sec.S_pct||0).toFixed(3)+' / '+Number(sec.Mg_pct||0).toFixed(3)+' / '+Number(sec.Cl_pct||0).toFixed(3)+'%</b></div>'+
+  '<h4>CT / crystallization</h4><div class="resrow"><span>'+lfEsc(ct.status)+'</span><b>Exact CT requires cooling test</b></div><div class="lab-note">'+lfEsc(ct.method||'')+'</div>'+
+  '<h4>Recommended addition sequence</h4>'+seq+
+  (comp?'<h4>Compatibility</h4>'+comp:'')+(warns?'<h4>Warnings</h4>'+warns:'')+
+  '<h4>Stability protocol</h4>'+stability+
+  '<div class="lab-note">'+lfEsc(d.note||'')+'</div>';
+}
+async function lfAssess(){
+  try{const d=await api('/api/lab/liquid-assess',{method:'POST',body:JSON.stringify(lfPayload())});lfRender(d)}catch(e){$('#lfResult').innerHTML='<div class="lab-warning">⚠ '+lfEsc(e.message||e)+'</div>'}
+}
+async function initLiquidFormulation(){await lfLoadCatalog();lfAddRow('water','');$('#lfAdd').onclick=()=>lfAddRow();$('#lfClear').onclick=()=>{$('#lfRows').innerHTML='';lfRenumber()};$('#lfAssess').onclick=lfAssess}
+(async()=>{try{await initLiquidFormulation()}catch(e){console.warn('Liquid formulation init failed',e)}})();

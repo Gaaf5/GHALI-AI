@@ -26,6 +26,21 @@
   <div class="composer"><textarea id="chatInput" placeholder="Ask GHALI AI…" rows="1"></textarea><button id="send">Send</button></div>
 </section>
 <section id="lab" class="tab">
+<div class="card liquid-form-card">
+<div class="section-title"><div><h3>🧪 Liquid NPK Preparation Sheet</h3><p class="muted">Build the real laboratory formulation: W/W, W/V, nutrient loading, compatibility, addition sequence, CT screening and stability plan.</p></div><span id="lfReadiness" class="engine-badge">READY</span></div>
+<div class="form-settings">
+<div><label>Product / Sample Name<input id="lfProduct" placeholder="Liquid NPK sample"></label></div>
+<div><label>Batch mass (kg)<input id="lfBatch" type="number" min="0.001" step="0.001" value="1000"></label></div>
+<div><label>Final density (g/mL)<input id="lfDensity" type="number" min="0.8" max="2.2" step="0.001" placeholder="Required"></label></div>
+<div><label>Target pH<input id="lfPH" type="number" min="0" max="14" step="0.01" placeholder="Optional"></label></div>
+<div><label>Assessment temperature (°C)<input id="lfTemp" type="number" step="0.1" value="25"></label></div>
+</div>
+<div class="addition-title"><h3>Raw materials</h3><span id="lfCount">0 materials</span></div>
+<div class="addition-head"><span>#</span><span>Raw material</span><span>kg</span><span>—</span><span>—</span><span></span></div>
+<div id="lfRows"></div>
+<div class="lab-actions"><button id="lfAdd" class="small" type="button">+ Add raw material</button><button id="lfClear" class="small" type="button">Clear</button><button id="lfAssess" class="primary">Assess formulation</button></div>
+<div id="lfResult" class="liquid-result"><div class="empty">Enter the raw materials and assess the formulation.</div></div>
+</div>
 <div class="lab-head"><div><h2>Virtual Mixing Laboratory</h2><p class="muted">Build an experiment in the exact addition order, then watch the vessel evolve in real time.</p></div><span class="engine-badge">EXPERIMENT MODE · <span id="labEngineStatus">checking engine…</span></span></div>
 <div class="card lab-reaction-strip">
 <div class="section-title"><div><h3>⚗ Reaction & Speciation Timeline</h3><p class="muted">See what enters the solution, how salts dissociate, and which species are predicted to form.</p></div><span id="labReactionState" class="engine-badge">READY</span></div>
@@ -135,5 +150,5 @@
 <section id="status" class="tab"><div class="grid three"><div class="metric"><span>Model</span><b id="sModel">—</b></div><div class="metric"><span>Materials</span><b id="sMaterials">—</b></div><div class="metric"><span>Knowledge docs</span><b id="sKnowledge">—</b></div></div><div class="card systemcard"><h3>System</h3><p>GHALI AI runs in the cloud. Deterministic chemistry tools handle calculations; the LLM handles reasoning, explanation, and web-backed research.</p></div></section>
 </main></div>
 <div id="modal" class="modal hidden"><div class="modalbox"><button class="close" id="closeModal">×</button><h3>Add Raw Material</h3><div class="formgrid"><input id="mName" placeholder="Name"><input id="mN" type="number" placeholder="N %"><input id="mP" type="number" placeholder="P₂O₅ %"><input id="mK" type="number" placeholder="K₂O %"><input id="mS" type="number" placeholder="S %"><input id="mMg" type="number" placeholder="Mg %"><input id="mCl" type="number" placeholder="Cl %"><input id="mNitrate" type="number" placeholder="Nitrate-N %"><input id="mAmmonia" type="number" placeholder="Ammoniacal-N %"><input id="mUreaN" type="number" placeholder="Ureic-N %"><input id="mTrace" placeholder='TE elements JSON e.g. {"Zn":10,"Fe":5}'><input id="mMoist" type="number" placeholder="Moisture %"><input id="mAssay" type="number" placeholder="Assay %"><input id="mSource" placeholder="Source"></div><label class="modal-active"><input id="mActive" type="checkbox" checked> Active material</label><button id="saveMaterial" class="primary">Save</button><div id="modalError" class="error"></div></div></div>
-<script src="/static/auth.js"></script><script src="/static/app.js"></script><script src="/static/formulation.js?v=20261001-5"></script><script src="/static/reverse.js?v=20261001-4"></script><script src="/static/lab.js"></script><script src="/static/manufacturing.js?v=20261006-5"></script>
+<script src="/static/auth.js"></script><script src="/static/app.js"></script><script src="/static/formulation.js?v=20261001-5"></script><script src="/static/reverse.js?v=20261001-4"></script><script src="/static/lab.js?v=20261006-1"></script><script src="/static/manufacturing.js?v=20261006-5"></script>
 </body></html>
