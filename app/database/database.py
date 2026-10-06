@@ -96,6 +96,8 @@ class Database:
             theoretical_json TEXT NOT NULL DEFAULT '{}',
             actual_json TEXT NOT NULL DEFAULT '{}',
             variance_json TEXT NOT NULL DEFAULT '{}',
+            released_at TIMESTAMP,
+            released_by INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES auth_users(id),
             FOREIGN KEY(formulation_id) REFERENCES formulations(id)
@@ -132,6 +134,13 @@ class Database:
         }
         for column,sql in migrations.items():
             if column not in existing:self.cursor.execute(sql)
+        batch_existing={r[1] for r in self.cursor.execute("PRAGMA table_info(production_batches)").fetchall()}
+        batch_migrations={
+            "released_at":"ALTER TABLE production_batches ADD COLUMN released_at TIMESTAMP",
+            "released_by":"ALTER TABLE production_batches ADD COLUMN released_by INTEGER",
+        }
+        for column,sql in batch_migrations.items():
+            if column not in batch_existing:self.cursor.execute(sql)
         self.connection.commit()
 
     def upsert_raw_material(self, name, n_pct=0, p2o5_pct=0, k2o_pct=0,
@@ -330,7 +339,9 @@ class Database:
     def release_production_batch(self, user_id, batch_id):
         row=self.cursor.execute("SELECT id,status FROM production_batches WHERE id=? AND user_id=?",(int(batch_id),user_id)).fetchone()
         if not row: raise ValueError("Production batch not found")
-        self.cursor.execute("UPDATE production_batches SET status='released' WHERE id=? AND user_id=?",(int(batch_id),user_id))
+        if str(row["status"]).lower()=="released":
+            return True
+        self.cursor.execute("UPDATE production_batches SET status='released', released_at=CURRENT_TIMESTAMP, released_by=? WHERE id=? AND user_id=?",(int(user_id),int(batch_id),user_id))
         self.connection.commit()
         return True
 
