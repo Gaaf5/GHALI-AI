@@ -21,9 +21,25 @@ def material_variance(theoretical, actual):
         }
     return out
 
+def compatibility_screen(material_names):
+    names={str(x).strip().lower() for x in (material_names or [])}
+    warnings=[]
+    def has(*terms):
+        return any(any(term in n for term in terms) for n in names)
+    if has("calcium nitrate","calcium") and has("map","mkp","phosphate","urea phosphate"):
+        warnings.append("Compatibility screen: calcium + phosphate combination can form low-solubility calcium phosphates; validate the specific grade and process moisture.")
+    if has("calcium nitrate","calcium") and has("sop","potassium sulfate","sulfate"):
+        warnings.append("Compatibility screen: calcium + sulfate combination can form sparingly soluble calcium sulfate under humid/wet conditions; validate storage and process conditions.")
+    if has("magnesium sulfate","mgso4") and has("phosphate","map","mkp"):
+        warnings.append("Compatibility screen: magnesium sulfate + concentrated phosphate systems may show caking or localized precipitation when moisture is present; validate the actual formulation.")
+    if has("ammonium nitrate") and has("urea"):
+        warnings.append("Process screen: ammonium nitrate/urea blends can be highly hygroscopic; moisture control and storage compatibility must be verified.")
+    return warnings
+
 def validate_formulation(result, material_rows=None):
     warnings=[]
     errors=[]
+    warnings.extend(compatibility_screen((result.get("materials") or {}).keys()))
     result=result or {}
     if result.get("status")!="FEASIBLE":
         errors.append("Formulation is not feasible within the selected tolerance.")
@@ -61,6 +77,8 @@ def validate_formulation(result, material_rows=None):
 
 def production_readiness(result, material_rows=None):
     audit=validate_formulation(result,material_rows)
+    audit["compatibility_warnings"]=compatibility_screen((result.get("materials") or {}).keys())
+    audit["warnings"].extend(audit["compatibility_warnings"])
     readiness="READY" if audit["valid"] and not audit["warnings"] else ("REVIEW" if audit["valid"] else "BLOCKED")
     return {**audit,"readiness":readiness}
 
