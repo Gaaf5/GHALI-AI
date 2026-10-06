@@ -305,7 +305,13 @@ class Database:
         row=self.cursor.execute("SELECT * FROM production_batches WHERE id=? AND user_id=?",(int(batch_id),user_id)).fetchone()
         if not row: raise ValueError("Production batch not found")
         theoretical=json.loads(row["theoretical_json"] or '{}')
-        actual_total=float(actual_total if actual_total is not None else sum(float(v) for v in actuals.values()))
+        actuals={str(k):float(v) for k,v in (actuals or {}).items()}
+        if any(v<0 for v in actuals.values()):
+            raise ValueError("Actual production quantities cannot be negative")
+        calculated_total=sum(actuals.values())
+        actual_total=float(calculated_total if actual_total is None else actual_total)
+        if actual_total<0:
+            raise ValueError("Actual production total cannot be negative")
         variance={}
         for name in set(theoretical)|set(actuals):
             t=float(theoretical.get(name,0)); a=float(actuals.get(name,0))
