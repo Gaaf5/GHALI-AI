@@ -114,7 +114,7 @@
 <div class="card">
 <div class="section-title"><div><h3>Manufacturing Workflow</h3><p class="muted">Formulation → Production Batch → Actuals → QC → COA.</p></div><span class="engine-badge">TRACEABLE</span></div>
 <div class="grid three"><div class="metric"><span>Formulations</span><b id="mfFormulations">0</b></div><div class="metric"><span>Production batches</span><b id="mfBatches">0</b></div><div class="metric"><span>QC results</span><b id="mfQC">0</b></div></div>
-<div class="form-settings"><div><label>Production Order No.</label><input id="mfOrderNo" placeholder="PO-2026-001"></div><div><label>Planned production (kg)</label><input id="mfPlannedKg" type="number" min="0" step="0.001" value="1000"></div></div>
+<div class="form-settings"><div><label>Saved formulation</label><select id="mfFormulationSelect"><option value="">Select formulation…</option></select></div><div><label>Production Order No.</label><input id="mfOrderNo" placeholder="PO-2026-001"></div><div><label>Planned production (kg)</label><input id="mfPlannedKg" type="number" min="0" step="0.001" value="1000"></div></div>
 <button id="mfCreateBatch" class="primary wide">Create Production Batch from Last Formulation</button>
 <div id="mfBatchInfo" class="reverse-note">No active batch.</div>
 <h4>Actual raw-material quantities</h4><div id="mfActualRows"></div>

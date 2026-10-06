@@ -212,6 +212,27 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(200,jb({'authenticated':False}))
             if path=='/healthz':
                 return self.send_data(200,jb({'ok':True,'app':'GHALI AI'}))
+            if path=='/api/manufacturing/overview':
+                u=self.require('chat')
+                if not u:return
+                return self.send_data(200,jb(STATE.db.manufacturing_overview(u['id'])))
+            if path=='/api/formulations':
+                u=self.require('formulation')
+                if not u:return
+                return self.send_data(200,jb(STATE.db.list_formulations(u['id'])))
+            if path.startswith('/api/production-batches/'):
+                u=self.require('formulation')
+                if not u:return
+                try: bid=int(path.rsplit('/',1)[1])
+                except ValueError:return self.send_data(400,jb({'error':'Invalid batch id'}))
+                batch=STATE.db.get_production_batch(u['id'],bid)
+                if not batch:return self.send_data(404,jb({'error':'Production batch not found'}))
+                batch['qc_results']=STATE.db.list_qc_results(u['id'],bid)
+                return self.send_data(200,jb(batch))
+            if path=='/api/qc-results':
+                u=self.require('formulation')
+                if not u:return
+                return self.send_data(200,jb(STATE.db.list_qc_results(u['id'])))
             if path=='/api/status':
                 u=self.require('chat');
                 if not u:return
@@ -368,10 +389,18 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/production-batch':
                 u=self.require('formulation')
                 if not u:return
-                theoretical=build_theoretical_batch(d.get('formulation') or d)
+                formulation=d.get('formulation')
+                formulation_id=d.get('formulation_id')
+                if not formulation and formulation_id:
+                    saved=STATE.db.get_formulation(u['id'],int(formulation_id))
+                    if not saved:return self.send_data(404,jb({'error':'Formulation not found'}))
+                    formulation=saved.get('result') or saved
+                theoretical=build_theoretical_batch(formulation or d)
                 import uuid
                 batch_no=str(d.get('batch_no') or ('BATCH-'+uuid.uuid4().hex[:8].upper()))
-                bid=STATE.db.save_production_batch(u['id'],batch_no,d.get('formulation_id'),d.get('order_no',''),float(d.get('planned_kg') or 0),theoretical)
+                planned=float(d.get('planned_kg') or (formulation or {}).get('batch_kg') or 0)
+                if planned<=0:return self.send_data(400,jb({'error':'Planned production quantity must be positive'}))
+                bid=STATE.db.save_production_batch(u['id'],batch_no,formulation_id,d.get('order_no',''),planned,theoretical)
                 return self.send_data(200,jb({'batch_id':bid,'batch_no':batch_no,'theoretical':theoretical}))
             if path=='/api/production-batch/actuals':
                 u=self.require('formulation')
@@ -387,6 +416,28 @@ class Handler(BaseHTTPRequestHandler):
                 audit=qc_status(results,d.get('limits') or {})
                 qid=STATE.db.save_qc_result(u['id'],int(d['batch_id']),str(d.get('sample_id','')),results,audit['status'],str(d.get('notes','')))
                 return self.send_data(200,jb({'qc_id':qid,**audit}))
+            if path=='/api/production-batch-coa':
+                u=self.require('formulation')
+                if not u:return
+                try:
+                    bid=int(d.get('batch_id'))
+                    batch=STATE.db.get_production_batch(u['id'],bid)
+                    if not batch:return self.send_data(404,jb({'error':'Production batch not found'}))
+                    payload={}
+                    if batch.get('formulation_id'):
+                        formulation=STATE.db.get_formulation(u['id'],batch['formulation_id'])
+                        if formulation: payload.update(formulation.get('result') or {})
+                    qc=STATE.db.list_qc_results(u['id'],bid,1)
+                    if qc:
+                        payload['achieved']={**(payload.get('achieved') or {}),**(qc[0].get('results') or {})}
+                    body=build_certificate_of_analysis(payload)
+                    self.send_response(200)
+                    self.send_header('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                    self.send_header('Content-Disposition','attachment; filename="Certificate_of_Analysis.xlsx"')
+                    self.send_header('Content-Length',str(len(body))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(body)
+                except Exception as exc:
+                    return self.send_data(500,jb({'error':'Could not create Certificate of Analysis','detail':str(exc)[:300]}))
+                return
             if path=='/api/qc-coa':
                 if not self.require('formulation'):return
                 try:

@@ -252,6 +252,48 @@ class Database:
         self.connection.commit()
         return self.cursor.lastrowid, no
 
+    def get_formulation(self, user_id, formulation_id):
+        import json
+        row=self.cursor.execute("SELECT id,formulation_no,target_json,batch_kg,materials_json,result_json,status,created_at FROM formulations WHERE id=? AND user_id=?",(int(formulation_id),user_id)).fetchone()
+        if not row:return None
+        d=dict(row)
+        d["target"]=json.loads(d.pop("target_json") or "{}")
+        d["materials"]=json.loads(d.pop("materials_json") or "{}")
+        d["result"]=json.loads(d.pop("result_json") or "{}")
+        return d
+
+    def list_formulations(self, user_id, limit=50):
+        import json
+        rows=self.cursor.execute("SELECT id,formulation_no,target_json,batch_kg,materials_json,result_json,status,created_at FROM formulations WHERE user_id=? ORDER BY id DESC LIMIT ?",(user_id,int(limit))).fetchall()
+        out=[]
+        for r in rows:
+            d=dict(r)
+            d["target"]=json.loads(d.pop("target_json") or "{}")
+            d["materials"]=json.loads(d.pop("materials_json") or "{}")
+            d["result"]=json.loads(d.pop("result_json") or "{}")
+            out.append(d)
+        return out
+
+    def get_production_batch(self, user_id, batch_id):
+        import json
+        row=self.cursor.execute("SELECT * FROM production_batches WHERE id=? AND user_id=?",(int(batch_id),user_id)).fetchone()
+        if not row:return None
+        d=dict(row)
+        for key in ("theoretical_json","actual_json","variance_json"):
+            d[key[:-5]]=json.loads(d.pop(key) or "{}")
+        return d
+
+    def list_qc_results(self, user_id, batch_id=None, limit=50):
+        import json
+        if batch_id is None:
+            rows=self.cursor.execute("SELECT * FROM qc_results WHERE user_id=? ORDER BY id DESC LIMIT ?",(user_id,int(limit))).fetchall()
+        else:
+            rows=self.cursor.execute("SELECT * FROM qc_results WHERE user_id=? AND batch_id=? ORDER BY id DESC LIMIT ?",(user_id,int(batch_id),int(limit))).fetchall()
+        out=[]
+        for r in rows:
+            d=dict(r); d["results"]=json.loads(d.pop("results_json") or "{}"); out.append(d)
+        return out
+
     def save_production_batch(self, user_id, batch_no, formulation_id, order_no, planned_kg, theoretical):
         self.cursor.execute(
             "INSERT INTO production_batches(user_id,batch_no,formulation_id,production_order_no,planned_kg,theoretical_json) VALUES(?,?,?,?,?,?)",
