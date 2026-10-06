@@ -23,7 +23,7 @@ from app.knowledge.thermo_db import build_seed_tdb
 from app.tools.phreeqc_generator import build_input as build_phreeqc_input
 from app.tools.phreeqc_adapter import discover_phreeqc, run_phreeqc
 from app.tools.model_selector import select_activity_model, water_analysis_to_molal
-from app.tools.manufacturing import production_readiness, build_theoretical_batch, material_variance, batch_kpis, qc_status, workflow_state
+from app.tools.manufacturing import production_readiness, build_theoretical_batch, material_variance, batch_kpis, qc_status, workflow_state, qc_limits_from_formulation, batch_release_state
 from app.web.auth import AuthManager
 
 ROOT=Path(__file__).resolve().parent; STATIC=ROOT/'static'; STATE=None
@@ -228,6 +228,9 @@ class Handler(BaseHTTPRequestHandler):
                 batch=STATE.db.get_production_batch(u['id'],bid)
                 if not batch:return self.send_data(404,jb({'error':'Production batch not found'}))
                 batch['qc_results']=STATE.db.list_qc_results(u['id'],bid)
+                formulation=STATE.db.get_formulation(u['id'],batch.get('formulation_id')) if batch.get('formulation_id') else None
+                batch['qc_limits']=qc_limits_from_formulation(formulation or {})
+                batch['release']=batch_release_state(batch,formulation,batch['qc_results'])
                 return self.send_data(200,jb(batch))
             if path=='/api/qc-results':
                 u=self.require('formulation')
@@ -412,10 +415,17 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/qc-result':
                 u=self.require('formulation')
                 if not u:return
+                bid=int(d['batch_id'])
+                batch=STATE.db.get_production_batch(u['id'],bid)
+                if not batch:return self.send_data(404,jb({'error':'Production batch not found'}))
+                formulation=STATE.db.get_formulation(u['id'],batch.get('formulation_id')) if batch.get('formulation_id') else None
                 results=d.get('results') or {}
-                audit=qc_status(results,d.get('limits') or {})
-                qid=STATE.db.save_qc_result(u['id'],int(d['batch_id']),str(d.get('sample_id','')),results,audit['status'],str(d.get('notes','')))
-                return self.send_data(200,jb({'qc_id':qid,**audit}))
+                limits=qc_limits_from_formulation(formulation or {})
+                if d.get('limits'): limits=d.get('limits')
+                audit=qc_status(results,limits)
+                qid=STATE.db.save_qc_result(u['id'],bid,str(d.get('sample_id','')),results,audit['status'],str(d.get('notes','')))
+                release=batch_release_state(batch,formulation,STATE.db.list_qc_results(u['id'],bid))
+                return self.send_data(200,jb({'qc_id':qid,'limits':limits,**audit,'release':release}))
             if path=='/api/production-batch-po':
                 u=self.require('formulation')
                 if not u:return

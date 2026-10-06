@@ -108,6 +108,36 @@ def qc_status(results, limits=None):
             failures.append(f"{key} above maximum")
     return {"status":"PASS" if not failures else "FAIL","failures":failures}
 
+def qc_limits_from_formulation(formulation):
+    formulation=formulation or {}
+    result=formulation.get("result") if isinstance(formulation.get("result"),dict) else formulation
+    target=result.get("target") or formulation.get("target") or {}
+    if isinstance(target,str):
+        parts=[x.strip() for x in target.replace("/","-").split("-")]
+        try: target={k:float(v) for k,v in zip(("N","P2O5","K2O"),parts)}
+        except (TypeError,ValueError): target={}
+    explicit=result.get("limits") or formulation.get("limits") or {}
+    tol=_f(result.get("tolerance_pct", formulation.get("tolerance_pct", 0.2)))
+    out={}
+    for key in ("N","P2O5","K2O"):
+        if key in explicit and isinstance(explicit[key],dict):
+            c=explicit[key]; out[key]={"min":_f(c.get("min")) if c.get("min") is not None else None,"max":_f(c.get("max")) if c.get("max") is not None else None}
+        elif key in target:
+            x=_f(target[key]); out[key]={"min":round(x-tol,6),"max":round(x+tol,6)}
+    return out
+
+def batch_release_state(batch, formulation=None, qc_results=None):
+    if not batch: return {"status":"BLOCKED","releasable":False,"reasons":["Production batch not found."]}
+    reasons=[]; planned=_f(batch.get("planned_kg")); actual=_f(batch.get("actual_kg")); status=str(batch.get("status") or "planned").lower()
+    if planned<=0: reasons.append("Planned production quantity is missing.")
+    if actual<=0 or status not in {"completed","released"}: reasons.append("Production actuals are not completed.")
+    qc=list(qc_results or []); latest=qc[0] if qc else None
+    if not latest: reasons.append("No QC result has been recorded.")
+    elif str(latest.get("status","" )).upper()!="PASS": reasons.append("Latest QC result did not pass.")
+    yield_pct=actual*100/planned if planned else 0
+    if planned and (yield_pct < 95 or yield_pct > 105): reasons.append(f"Production yield {yield_pct:.2f}% is outside the 95-105% release band.")
+    return {"status":"HOLD","releasable":False,"reasons":reasons,"yield_pct":round(yield_pct,4)} if reasons else {"status":"RELEASED","releasable":True,"reasons":[],"yield_pct":round(yield_pct,4)}
+
 def workflow_state(formulation=None, production=None, qc=None):
     if not formulation:
         return {"stage":"FORMULATION","next":"Create formulation"}
