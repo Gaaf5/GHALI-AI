@@ -1,11 +1,15 @@
 from __future__ import annotations
+import math
 from typing import Any
 from app.tools.lab import resolve, MATERIALS, _solubility_g_per_100g_water
 from app.tools.manufacturing import compatibility_screen
 
 def _f(v, default=0.0):
-    try: return float(v)
-    except (TypeError, ValueError): return default
+    try:
+        value = float(v)
+        return value if math.isfinite(value) else default
+    except (TypeError, ValueError, OverflowError):
+        return default
 
 def assess_liquid_formulation(payload: dict[str,Any], raw_materials=None) -> dict[str,Any]:
     rows=payload.get("materials") or []
@@ -34,12 +38,33 @@ def assess_liquid_formulation(payload: dict[str,Any], raw_materials=None) -> dic
     nutrient={"N":0.0,"P2O5":0.0,"K2O":0.0,"S":0.0,"Mg":0.0,"Cl":0.0}
     n_forms={"nitrate":0.0,"ammoniacal":0.0,"urea":0.0}
     lookup={str(x.get("name","")).strip().lower():x for x in (raw_materials or [])}
+    # Resolve database names through the lab catalog as well, so catalog items such as
+    # water and potassium_chloride can use a differently named raw-material record.
+    for z in (raw_materials or []):
+        try:
+            lookup.setdefault(resolve(str(z.get("name","")).lower()), z)
+        except Exception:
+            pass
     warnings=[]; errors=[]; material_rows=[]
+    catalog_db_aliases={
+        "potassium_chloride":("KCl (0-0-60)","KCl","MOP"),
+        "ammonium_sulfate":("ammonium sulfate",),
+        "ammonium_nitrate":("ammonium nitrate",),
+        "potassium_nitrate":("potassium nitrate","NOP"),
+        "magnesium_sulfate":("Magnesium 33%",),
+    }
     for x in materials:
-        db=lookup.get(x["name"].lower())
+        db=lookup.get(x["name"].lower()) or lookup.get(x["key"].lower())
         if db is None:
-            # normalized fallback
-            db=next((z for z in (raw_materials or []) if str(z.get("name","")).lower()==x["key"].lower()),None)
+            db=next((lookup.get(alias.lower()) for alias in catalog_db_aliases.get(x["key"],()) if lookup.get(alias.lower())),None)
+        catalog_known = x["key"] in MATERIALS
+        if db is None and not catalog_known:
+            errors.append(f"Unknown raw material '{x['name']}': nutrient composition is unavailable. Add or select a material with verified metadata before assessment.")
+            material_rows.append({"material":x["name"],"kg":x["kg"],"ww_pct":ww(x["kg"]),"solubility_g_per_100g_water":None,"solubility_source":"unavailable","data_status":"unknown"})
+            warnings.append(f"{x['name']}: nutrient contribution and compatibility cannot be reliably assessed without raw-material metadata.")
+            continue
+        if db is None and catalog_known and x["key"] != "water":
+            warnings.append(f"{x['name']}: recognized by the lab catalog, but no matching raw-material nutrient analysis was found; nutrient contribution is assumed zero only for screening and must be verified.")
         for k,field in [("N","n_pct"),("P2O5","p2o5_pct"),("K2O","k2o_pct"),("S","s_pct"),("Mg","mg_pct"),("Cl","chlorine_pct")]:
             nutrient[k]+=x["kg"]*_f(db.get(field) if db else 0)/100
         n_forms["nitrate"]+=x["kg"]*_f(db.get("n_nitrate_pct") if db else 0)/100
@@ -59,11 +84,26 @@ def assess_liquid_formulation(payload: dict[str,Any], raw_materials=None) -> dic
                 warnings.append(f"{x['name']}: charge is close to the pure-water solubility ceiling at {temp:g} °C; cooling margin may be small.")
         material_rows.append({
             "material":x["name"],"kg":x["kg"],"ww_pct":ww(x["kg"]),
-            "wv_pct":ww(x["kg"])*density,
             "solubility_g_per_100g_water":sol,"solubility_source":source
         })
     target={"N":nutrient["N"]/total*100,"P2O5":nutrient["P2O5"]/total*100,"K2O":nutrient["K2O"]/total*100}
     target_wv={k:v*density for k,v in target.items()}
+    mass_delta=total-batch_kg
+    mass_delta_pct=mass_delta*100/batch_kg
+    if abs(mass_delta_pct)>0.5:
+        warnings.append(f"Mass balance: charged ingredients total {total:.3f} kg, differing from the declared batch mass {batch_kg:.3f} kg by {mass_delta:+.3f} kg ({mass_delta_pct:+.2f}%). Verify whether the batch mass is a target or the actual sum of charges.")
+    if abs(mass_delta_pct)>2.0:
+        errors.append("Declared batch mass and sum of ingredient charges differ by more than 2%; formulation assessment is blocked until the mass basis is reconciled.")
+    estimated_volume_l=total/density
+    volume_delta_pct=(estimated_volume_l-target_volume_l)*100/target_volume_l if target_volume_l>0 else 0.0
+    if target_volume_l>0 and abs(volume_delta_pct)>2.0:
+        warnings.append(f"Volume check: estimated volume from charged mass and declared density is {estimated_volume_l:.3f} L, differing from target volume {target_volume_l:.3f} L by {volume_delta_pct:+.2f}%. Verify measured final volume and density; mixture volumes may not be additive.")
+    hydrate_materials=[x["name"] for x in materials if MATERIALS.get(x["key"],{}).get("hydrate")]
+    if hydrate_materials:
+        warnings.append("Hydrated salts detected (" + ", ".join(hydrate_materials) + "): crystal water is not separately included in the free-water solubility capacity; confirm hydrate form and assay before relying on saturation estimates.")
+    solubility_checked=sum(1 for x in materials if x["key"]!="water" and _solubility_g_per_100g_water(x["key"],temp)[0] is not None)
+    if water>0 and solubility_checked>1:
+        warnings.append("Mixed-electrolyte limitation: the listed solubility checks use single-solute pure-water reference curves and do not calculate a validated multi-salt equilibrium/activity model.")
     compatibility=compatibility_screen([x["name"] for x in materials])
     for w in compatibility: warnings.append(w)
     ionic_load=(nutrient["Cl"]/total*100)+(nutrient["S"]/total*100)*1.5
@@ -103,8 +143,9 @@ def assess_liquid_formulation(payload: dict[str,Any], raw_materials=None) -> dic
     return {
         "product":payload.get("product_name","Liquid NPK sample"),
         "readiness":readiness,"batch_kg":batch_kg,"density_g_ml":density,
-        "estimated_volume_l":batch_kg/density,"target_volume_l":target_volume_l,
+        "estimated_volume_l":estimated_volume_l,"target_volume_l":target_volume_l,
         "temperature_c":temp,"total_charge_kg":total,"water_kg":water,
+        "mass_balance":{"declared_batch_kg":batch_kg,"charged_mass_kg":total,"delta_kg":mass_delta,"delta_pct_of_declared":mass_delta_pct,"within_0_5_pct":abs(mass_delta_pct)<=0.5,"basis":"sum of charged ingredient masses; volume is estimated from declared density, not measured"},
         "formula_ww":target,"formula_wv":target_wv,
         "nitrogen_forms_pct":{"nitrate_N":n_forms["nitrate"]/total*100,"ammoniacal_N":n_forms["ammoniacal"]/total*100,"urea_N":n_forms["urea"]/total*100},
         "secondary":{"S_pct":nutrient["S"]/total*100,"Mg_pct":nutrient["Mg"]/total*100,"Cl_pct":nutrient["Cl"]/total*100},

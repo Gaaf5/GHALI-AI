@@ -33,6 +33,27 @@ def test_solver_uses_database_composition():
     assert abs(result["materials"]["test nitrogen"] - 1000) < 1e-6
 
 
+def test_reseeding_preserves_user_edited_raw_material_composition():
+    from tempfile import TemporaryDirectory
+    from pathlib import Path
+
+    with TemporaryDirectory() as temp_dir:
+        db = Database(Path(temp_dir) / "raw-material-test.sqlite")
+        db.create_tables()
+        seed_default_raw_materials(db)
+        db.upsert_raw_material("urea", n_pct=44.5, p2o5_pct=1.2, k2o_pct=0.4,
+                               moisture_pct=0.8, assay_pct=98.5, source="user")
+        seed_default_raw_materials(db)
+        row = db.get_raw_material("urea")
+        db.close()
+    assert row["n_pct"] == 44.5
+    assert row["p2o5_pct"] == 1.2
+    assert row["k2o_pct"] == 0.4
+    assert row["moisture_pct"] == 0.8
+    assert row["assay_pct"] == 98.5
+    assert row["source"] == "user"
+
+
 def test_inactive_material_is_rejected():
     db = Database()
     db.create_tables()

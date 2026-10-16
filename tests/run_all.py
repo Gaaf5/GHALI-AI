@@ -2,6 +2,10 @@ import importlib.util
 import sys
 from pathlib import Path
 
+# Keep test reports printable on Windows consoles using legacy code pages.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 

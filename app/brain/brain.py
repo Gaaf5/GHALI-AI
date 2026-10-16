@@ -96,6 +96,13 @@ class Brain:
                 return f"molar_mass({formula}) = {value:.6f} g/mol"
 
             if tool_name == "mass_percent":
+                # A request like "5% of 200 kg" asks for a percentage-of calculation,
+                # not the mass fraction of two quantities. Never feed its numbers to
+                # mass_percent in reverse order and present the result as deterministic.
+                if re.search(r"\d+(?:\.\d+)?\s*%\s*(?:of|من)\b", text, re.I):
+                    return None
+                if re.search(r"\b(?:today|tomorrow|yesterday|date|year|202[0-9])\b", text, re.I):
+                    return None
                 nums = re.findall(r"\d+(?:\.\d+)?", text)
                 if len(nums) < 2:
                     return None

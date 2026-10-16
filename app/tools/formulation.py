@@ -1,9 +1,11 @@
 from __future__ import annotations
 import itertools
 import json
+import math
 from typing import Mapping
 from scipy.optimize import linprog
 from app.database import Database, seed_default_raw_materials
+from app.database.raw_materials import ensure_extended_nutrient_metadata
 
 NUTRIENTS=("N","P2O5","K2O")
 RAW_MATERIALS={
@@ -17,15 +19,19 @@ RAW_MATERIALS={
 def _parse_grade(target):
     parts=target.strip().replace("–","-").replace("—","-").split("-")
     if len(parts)!=3: raise ValueError("Target grade must look like N-P2O5-K2O")
-    try:return tuple(float(x.strip()) for x in parts)
+    try: values=tuple(float(x.strip()) for x in parts)
     except ValueError as e:raise ValueError("Target grade must contain numeric N-P2O5-K2O values") from e
+    if not all(math.isfinite(v) for v in values): raise ValueError("Target grade values must be finite numbers")
+    if any(v < 0 or v > 100 for v in values): raise ValueError("Target nutrient grades must be between 0 and 100%")
+    return values
 
 def _bounds(names,batch,limits):
     out=[]
     for n in names:
         cfg=(limits or {}).get(n,{}) or {}; lo=float(cfg.get("min_kg",0) or 0); hi=cfg.get("max_kg",None)
         hi=batch if hi in (None,"") else float(hi)
-        if lo<0 or hi<0 or lo>hi: raise ValueError(f"Invalid min/max for {n}")
+        if not math.isfinite(lo) or not math.isfinite(hi) or lo<0 or hi<0 or lo>hi or lo>batch:
+            raise ValueError(f"Invalid min/max for {n}: limits must be finite, non-negative, within batch mass, and min <= max")
         out.append((lo,min(hi,batch)))
     return out
 
@@ -65,7 +71,10 @@ def _grades(names,masses,mats,batch):
     return {k:total[k]/batch*100.0 for k in NUTRIENTS}
 
 def _nutrient_breakdown(masses, properties, batch):
-    total_n=sum(float(masses.get(n,0))*float(p.get("N",0))/100.0 for n,p in properties.items())
+    # Only charged quantities contribute; properties may include selected materials
+    # whose optimized mass is zero.
+    total_n=sum(float(mass)*float(properties.get(name,{}).get("N",0))/100.0
+                for name,mass in masses.items())
     forms={"nitrate_N":0.0,"ammoniacal_N":0.0,"urea_N":0.0}
     sulfur=0.0
     magnesium=0.0
@@ -98,7 +107,7 @@ def _nutrient_breakdown(masses, properties, batch):
         "trace_elements_kg":traces,
         "trace_elements_pct_of_product":{k:v*100.0/max(batch,1e-12) for k,v in traces.items()},
         "te_mix_trace_elements_pct":te_mix_trace_pct,
-        "te_mix_trace_elements_ppm":{k:v*100.0 for k,v in te_mix_trace_pct.items()},
+        "te_mix_trace_elements_ppm":{k:v*10000.0 for k,v in te_mix_trace_pct.items()},
     }
 
 def _result(status,masses,batch,target,achieved,tol,objective,reason=None,properties=None):
@@ -113,14 +122,30 @@ def _result(status,masses,batch,target,achieved,tol,objective,reason=None,proper
             "objective":({"maximize":list(objective[0]),"minimize":list(objective[1])} if objective else None)}
 
 def solve_formulation(target_n,target_p2o5,target_k2o,batch_kg,materials,tolerance=0.2,limits=None,objective=None,fixed_kg=None):
-    if batch_kg<=0:raise ValueError("batch_kg must be positive")
-    target=(float(target_n),float(target_p2o5),float(target_k2o));names=list(dict(materials).keys())
+    try:
+        batch_kg=float(batch_kg); tolerance=float(tolerance)
+        target=(float(target_n),float(target_p2o5),float(target_k2o))
+    except (TypeError, ValueError, OverflowError) as e:
+        raise ValueError("Batch mass, tolerance, and target grades must be numeric.") from e
+    if not math.isfinite(batch_kg) or batch_kg<=0: raise ValueError("batch_kg must be a finite positive number")
+    if not math.isfinite(tolerance) or tolerance<0: raise ValueError("tolerance must be a finite non-negative number")
+    if not all(math.isfinite(v) and 0<=v<=100 for v in target): raise ValueError("Target nutrient grades must be finite values between 0 and 100%")
+    names=list(dict(materials).keys())
+    if not names: raise ValueError("At least one raw material must be selected.")
+    for name in names:
+        try: values=[float(materials[name].get(k,0)) for k in NUTRIENTS]
+        except (TypeError, ValueError, OverflowError) as e: raise ValueError(f"Invalid nutrient analysis for {name}") from e
+        if not all(math.isfinite(v) and 0<=v<=100 for v in values): raise ValueError(f"Nutrient analysis for {name} must contain finite values between 0 and 100%.")
     fixed_kg=fixed_kg or {}
     limits=dict(limits or {})
     for name,value in fixed_kg.items():
         if name not in names:raise ValueError(f"Fixed material must be selected: {name}")
-        q=float(value)
-        if q<0 or q>batch_kg:raise ValueError(f"Invalid fixed quantity for {name}: {q}")
+        try:
+            q=float(value)
+        except (TypeError, ValueError, OverflowError) as e:
+            raise ValueError(f"Invalid fixed quantity for {name}: expected a finite number") from e
+        if not math.isfinite(q) or q<0 or q>batch_kg:
+            raise ValueError(f"Invalid fixed quantity for {name}: quantity must be finite and between 0 and batch mass")
         limits[name]={"min_kg":q,"max_kg":q}
     x=_exact(names,materials,target,batch_kg,float(tolerance),limits,objective)
     if x is not None:return _result("FEASIBLE",dict(zip(names,x)),batch_kg,target,_grades(names,x,materials,batch_kg),float(tolerance),objective,properties=materials)
@@ -155,6 +180,7 @@ def analyze_blend_quantities(material_quantities):
     db=Database()
     try:
         db.create_tables()
+        ensure_extended_nutrient_metadata(db)
         if not db.list_raw_materials(active_only=True):
             seed_default_raw_materials(db)
         quantities={}
@@ -213,6 +239,7 @@ def solve_named_formulation(target,batch_kg,material_names,tolerance=0.2,limits=
     tn,tp,tk=_parse_grade(target);db=Database()
     try:
         db.create_tables()
+        ensure_extended_nutrient_metadata(db)
         if not db.list_raw_materials(active_only=True):seed_default_raw_materials(db)
         selected={};unknown=[]
         for raw in material_names:

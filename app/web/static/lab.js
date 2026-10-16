@@ -353,13 +353,14 @@ function lfPayload(){
 }
 function lfRender(d){
   $('#lfReadiness').textContent=d.readiness||'REVIEW';
-  const fw=d.formula_ww||{},fv=d.formula_wv||{},sec=d.secondary||{},nf=d.nitrogen_forms_pct||{},ct=d.ct||{};
+  const fw=d.formula_ww||{},fv=d.formula_wv||{},sec=d.secondary||{},nf=d.nitrogen_forms_pct||{},ct=d.ct||{},mb=d.mass_balance||{};
   const mats=(d.materials||[]).map(x=>'<div class="resrow"><span>'+lfEsc(x.material)+'</span><b>'+Number(x.kg).toFixed(3)+' kg · W/W '+Number(x.ww_pct).toFixed(3)+'% · W/V '+Number(x.wv_pct).toFixed(3)+'%</b></div>').join('');
   const warns=(d.warnings||[]).map(x=>'<div class="lab-warning">⚠ '+lfEsc(x)+'</div>').join('');
   const comp=(d.compatibility_warnings||[]).map(x=>'<div class="lab-warning">⚗ '+lfEsc(x)+'</div>').join('');
   const seq=(d.addition_sequence||[]).map((x,i)=>'<div class="resrow"><span>'+(i+1)+'. '+lfEsc(x)+'</span><b>ADD</b></div>').join('');
   const stability=(d.stability_plan||[]).map(x=>'<div class="resrow"><span>'+lfEsc(x.time)+'</span><b>'+lfEsc((x.tests||[]).join(' · '))+'</b></div>').join('');
   $('#lfResult').innerHTML='<div class="lab-kpis"><div><span>Readiness</span><b>'+lfEsc(d.readiness)+'</b></div><div><span>Estimated volume</span><b>'+Number(d.estimated_volume_l||0).toFixed(2)+' L</b></div><div><span>N-P-K W/W</span><b>'+Number(fw.N||0).toFixed(2)+'-'+Number(fw.P2O5||0).toFixed(2)+'-'+Number(fw.K2O||0).toFixed(2)+'</b></div><div><span>N-P-K W/V</span><b>'+Number(fv.N||0).toFixed(2)+'-'+Number(fv.P2O5||0).toFixed(2)+'-'+Number(fv.K2O||0).toFixed(2)+'</b></div></div>'+
+  '<h4>Mass balance</h4><div class="resrow"><span>Declared batch / charged mass</span><b>'+Number(mb.declared_batch_kg||d.batch_kg||0).toFixed(3)+' / '+Number(mb.charged_mass_kg||d.total_charge_kg||0).toFixed(3)+' kg</b></div><div class="resrow"><span>Mass difference</span><b>'+Number(mb.delta_kg||0).toFixed(3)+' kg ('+Number(mb.delta_pct_of_declared||0).toFixed(2)+'%)</b></div>'+
   '<h4>Material sheet</h4>'+mats+
   '<h4>Nutrient analysis</h4>'+['N','P2O5','K2O'].map(k=>'<div class="resrow"><span>'+k+' W/W</span><b>'+Number(fw[k]||0).toFixed(3)+'% · W/V '+Number(fv[k]||0).toFixed(3)+'%</b></div>').join('')+
   '<div class="resrow"><span>Nitrate / Ammoniacal / Urea N</span><b>'+Number(nf.nitrate_N||0).toFixed(3)+' / '+Number(nf.ammoniacal_N||0).toFixed(3)+' / '+Number(nf.urea_N||0).toFixed(3)+'%</b></div>'+
